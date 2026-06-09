@@ -3,18 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GXLD — Full Gallery</title>
+  <title>GXLD - Full Gallery</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --gold: #C9A84C;
-      --gold-dim: rgba(201,168,76,0.15);
-      --gold-glow: rgba(201,168,76,0.06);
+      --gold: #D4A843;
+      --gold-bright: #E8C060;
+      --gold-dim: rgba(212,168,67,0.18);
+      --gold-glow: rgba(212,168,67,0.07);
       --bg: #080808; --bg2: #0d0d0d; --bg3: #111;
       --border: rgba(255,255,255,0.06);
-      --border-gold: rgba(201,168,76,0.25);
+      --border-gold: rgba(212,168,67,0.3);
       --text: #fff; --text-2: #999; --text-3: #555; --text-4: #333;
       --font-display: 'Space Grotesk', sans-serif;
       --font-body: 'Inter', sans-serif;
@@ -28,101 +29,168 @@
     }
     a { text-decoration: none; color: inherit; }
 
-    /* cursor */
-    .cursor-dot { width:6px;height:6px;background:var(--gold);border-radius:50%;position:fixed;top:0;left:0;pointer-events:none;z-index:9999;transform:translate(-50%,-50%); }
-    .cursor-ring { width:32px;height:32px;border:1px solid rgba(201,168,76,0.4);border-radius:50%;position:fixed;top:0;left:0;pointer-events:none;z-index:9998;transform:translate(-50%,-50%);transition:left .1s,top .1s,width .3s,height .3s,border-color .3s,background .3s; }
-    .cursor-ring.hovered { width:50px;height:50px;border-color:var(--gold);background:rgba(201,168,76,0.05); }
+    /* CURSOR */
+    .cursor-dot {
+      width: 6px; height: 6px; background: var(--gold-bright); border-radius: 50%;
+      position: fixed; top: 0; left: 0; pointer-events: none; z-index: 9999;
+      transform: translate(-50%,-50%); will-change: left, top;
+    }
+    .cursor-ring {
+      width: 32px; height: 32px; border: 1.5px solid rgba(212,168,67,0.5);
+      border-radius: 50%; position: fixed; top: 0; left: 0;
+      pointer-events: none; z-index: 9998; transform: translate(-50%,-50%);
+      transition: width .3s, height .3s, border-color .3s, background .3s;
+      will-change: left, top;
+    }
+    .cursor-ring.hovered { width: 50px; height: 50px; border-color: var(--gold-bright); background: rgba(212,168,67,0.06); }
 
-    /* noise */
-    body::after { content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");pointer-events:none;z-index:8999;opacity:.5; }
+    /* NOISE */
+    body::after {
+      content: ''; position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 8999; opacity: .45;
+    }
 
+    /* NAV */
     nav {
-      position: fixed; top:0;left:0;right:0;z-index:1000;
-      padding:18px 52px;
-      display:flex;align-items:center;justify-content:space-between;
-      background:rgba(8,8,8,0.85);backdrop-filter:blur(24px);
-      border-bottom:1px solid var(--border);
+      position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+      padding: 18px 52px; display: flex; align-items: center; justify-content: space-between;
+      background: rgba(8,8,8,0.88); backdrop-filter: blur(24px); border-bottom: 1px solid var(--border);
     }
-    .nav-logo { font-family:var(--font-display);font-size:18px;font-weight:700;letter-spacing:4px; }
-    .nav-logo span { color:var(--gold); }
+    .nav-logo { font-family: var(--font-display); font-size: 18px; font-weight: 700; letter-spacing: 4px; }
+    .nav-logo span { color: var(--gold-bright); }
     .nav-back {
-      display:inline-flex;align-items:center;gap:8px;
-      font-size:12px;color:var(--text-3);
-      border:1px solid var(--border);padding:8px 18px;border-radius:6px;
-      cursor:none;transition:border-color .2s,color .2s;
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 12px; color: var(--text-3);
+      border: 1px solid var(--border); padding: 8px 18px; border-radius: 6px;
+      cursor: none; transition: border-color .2s, color .2s;
     }
-    .nav-back:hover { border-color:var(--border-gold);color:var(--gold); }
+    .nav-back:hover { border-color: var(--border-gold); color: var(--gold-bright); }
 
-    .page-header {
-      padding: 140px 52px 60px;
-    }
-    .page-header-inner { max-width:1200px;margin:0 auto; }
+    /* PAGE HEADER */
+    .page-header { padding: 140px 52px 60px; }
+    .page-header-inner { max-width: 1200px; margin: 0 auto; }
     .eyebrow {
-      display:inline-flex;align-items:center;gap:8px;
-      font-size:10px;letter-spacing:3px;color:var(--gold);
-      text-transform:uppercase;margin-bottom:14px;
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 10px; letter-spacing: 3px; color: var(--gold-bright);
+      text-transform: uppercase; margin-bottom: 14px;
     }
-    .eyebrow::before { content:'';width:16px;height:1px;background:var(--gold); }
+    .eyebrow::before { content: ''; width: 16px; height: 1px; background: var(--gold-bright); }
     h1 {
-      font-family:var(--font-display);
-      font-size:clamp(36px,5vw,64px);font-weight:700;letter-spacing:-1.5px;
-      margin-bottom:16px;
+      font-family: var(--font-display); font-size: clamp(36px,5vw,64px);
+      font-weight: 700; letter-spacing: -1.5px; margin-bottom: 16px;
     }
-    .page-sub { font-size:14px;color:var(--text-2);line-height:1.8;max-width:480px; }
+    .page-sub { font-size: 14px; color: var(--text-2); line-height: 1.8; max-width: 480px; }
 
-    main { padding:0 52px 100px; }
-    .gallery-inner { max-width:1200px;margin:0 auto; }
-    .gallery-grid {
-      display:grid;grid-template-columns:repeat(3,1fr);gap:16px;
-    }
+    /* GALLERY */
+    main { padding: 0 52px 100px; }
+    .gallery-inner { max-width: 1200px; margin: 0 auto; }
+    .gallery-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+
+    /* Cards: only transition border-color and box-shadow on hover, NO transform on scroll */
     .g-card {
-      border-radius:12px;overflow:hidden;background:var(--bg3);
-      border:1px solid var(--border);position:relative;cursor:none;
-      transition:transform .45s cubic-bezier(.16,1,.3,1),box-shadow .4s,border-color .3s;
+      border-radius: 12px; overflow: hidden; background: var(--bg3);
+      border: 1px solid var(--border); position: relative; cursor: none;
+      transition: border-color .3s ease, box-shadow .3s ease;
     }
     .g-card:hover {
-      transform:translateY(-8px);border-color:var(--border-gold);
-      box-shadow:0 24px 64px rgba(0,0,0,.5),0 0 0 1px var(--border-gold);
+      border-color: var(--border-gold);
+      box-shadow: 0 16px 48px rgba(0,0,0,.45), 0 0 0 1px var(--border-gold), 0 0 30px rgba(212,168,67,0.07);
     }
-    .g-img { width:100%;height:220px;overflow:hidden;position:relative; }
+    .g-img { width: 100%; height: 220px; overflow: hidden; position: relative; }
     .g-img img {
-      width:100%;height:100%;object-fit:cover;
-      transition:transform .65s cubic-bezier(.16,1,.3,1),filter .4s;
-      filter:brightness(.8) saturate(.85);
+      width: 100%; height: 100%; object-fit: cover;
+      /* no filter animation on gallery - perf improvement */
+      filter: brightness(.82) saturate(.9);
+      transition: transform .5s cubic-bezier(.16,1,.3,1);
     }
-    .g-card:hover .g-img img { transform:scale(1.07);filter:brightness(1.05) saturate(1.1); }
-    .g-overlay { position:absolute;inset:0;background:linear-gradient(180deg,transparent 45%,rgba(8,8,8,.85) 100%);pointer-events:none; }
+    .g-card:hover .g-img img { transform: scale(1.05); }
+    .g-overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(180deg, transparent 45%, rgba(8,8,8,.8) 100%);
+      pointer-events: none;
+    }
     .g-badge {
-      position:absolute;top:12px;right:12px;
-      font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
-      background:var(--gold);color:#080808;padding:4px 10px;border-radius:4px;
-      opacity:0;transform:translateY(-4px);transition:opacity .3s,transform .3s;
+      position: absolute; top: 12px; right: 12px;
+      font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+      background: var(--gold); color: #080808; padding: 4px 10px; border-radius: 4px;
+      opacity: 0; transform: translateY(-4px); transition: opacity .25s, transform .25s;
     }
-    .g-card:hover .g-badge { opacity:1;transform:translateY(0); }
-    .g-body { padding:16px 18px 20px; }
-    .g-title { font-size:14px;font-weight:600;color:var(--text);margin-bottom:5px; }
-    .g-meta { font-size:11px;color:var(--text-3);letter-spacing:.5px; }
+    .g-card:hover .g-badge { opacity: 1; transform: translateY(0); }
+    .g-body { padding: 16px 18px 20px; }
+    .g-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 5px; }
+    .g-meta { font-size: 11px; color: var(--text-3); letter-spacing: .5px; }
 
-    /* reveal */
-    .reveal { opacity:0;transform:translateY(24px);transition:opacity .7s cubic-bezier(.16,1,.3,1),transform .7s cubic-bezier(.16,1,.3,1); }
-    .reveal.shown { opacity:1;transform:translateY(0); }
-    .d1{transition-delay:.05s}.d2{transition-delay:.1s}.d3{transition-delay:.15s}
-    .d4{transition-delay:.2s}.d5{transition-delay:.25s}.d6{transition-delay:.3s}
+    /* Click hint on image */
+    .g-click-hint {
+      position: absolute; bottom: 12px; left: 12px;
+      font-size: 9px; letter-spacing: 1px; text-transform: uppercase;
+      color: rgba(255,255,255,0.4); opacity: 0;
+      transition: opacity .25s;
+      pointer-events: none;
+    }
+    .g-card:hover .g-click-hint { opacity: 1; }
 
-    footer { padding:36px 52px;border-top:1px solid var(--border); }
-    .footer-inner { max-width:1200px;margin:0 auto;display:flex;justify-content:space-between;align-items:center; }
-    .footer-logo { font-family:var(--font-display);font-size:15px;font-weight:700;letter-spacing:4px; }
-    .footer-logo span { color:var(--gold); }
-    .footer-copy { font-size:11px;color:var(--text-4); }
+    /* REVEAL - simpler, no translateY to avoid reflow lag with 10 items */
+    .reveal { opacity: 0; transition: opacity .6s ease; }
+    .reveal.shown { opacity: 1; }
+    .d1 { transition-delay: .04s; }
+    .d2 { transition-delay: .08s; }
+    .d3 { transition-delay: .12s; }
+    .d4 { transition-delay: .16s; }
+    .d5 { transition-delay: .20s; }
+    .d6 { transition-delay: .24s; }
+
+    /* LIGHTBOX */
+    .lightbox {
+      position: fixed; inset: 0; z-index: 9000;
+      background: rgba(0,0,0,0.93); backdrop-filter: blur(14px);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity .3s ease;
+    }
+    .lightbox.active { opacity: 1; pointer-events: all; }
+    .lightbox-img {
+      max-width: 90vw; max-height: 86vh; border-radius: 12px;
+      border: 1px solid var(--border-gold);
+      box-shadow: 0 40px 120px rgba(0,0,0,.8), 0 0 60px rgba(212,168,67,0.12);
+      transform: scale(0.93); transition: transform .35s cubic-bezier(.16,1,.3,1);
+      object-fit: contain;
+    }
+    .lightbox.active .lightbox-img { transform: scale(1); }
+    .lightbox-close {
+      position: absolute; top: 24px; right: 28px;
+      width: 40px; height: 40px; border-radius: 50%;
+      border: 1px solid var(--border-gold); background: var(--gold-glow);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; color: var(--gold-bright); cursor: none;
+      transition: background .2s, transform .2s;
+    }
+    .lightbox-close:hover { background: var(--gold-dim); transform: rotate(90deg); }
+    .lightbox-label {
+      position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%);
+      font-size: 12px; color: var(--text-3); letter-spacing: 1px;
+      background: rgba(8,8,8,.75); padding: 6px 18px; border-radius: 20px;
+      border: 1px solid var(--border); white-space: nowrap;
+    }
+
+    /* FOOTER */
+    footer { padding: 36px 52px; border-top: 1px solid var(--border); }
+    .footer-inner { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+    .footer-logo { font-family: var(--font-display); font-size: 15px; font-weight: 700; letter-spacing: 4px; }
+    .footer-logo span { color: var(--gold-bright); }
+    .footer-copy { font-size: 11px; color: var(--text-4); }
     .footer-dc {
-      display:inline-flex;align-items:center;gap:8px;
-      font-size:12px;color:var(--text-3);
-      border:1px solid var(--border);padding:8px 16px;border-radius:6px;
-      cursor:none;transition:border-color .2s,color .2s,background .2s;
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 12px; color: var(--text-3); border: 1px solid var(--border);
+      padding: 8px 16px; border-radius: 6px; cursor: none;
+      transition: border-color .2s, color .2s, background .2s;
     }
-    .footer-dc:hover { border-color:var(--border-gold);color:var(--gold);background:var(--gold-glow); }
+    .footer-dc:hover { border-color: var(--border-gold); color: var(--gold-bright); background: var(--gold-glow); }
 
-    ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:#252525;border-radius:2px}::-webkit-scrollbar-thumb:hover{background:var(--gold)}
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: #252525; border-radius: 2px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--gold); }
   </style>
 </head>
 <body>
@@ -130,16 +198,23 @@
   <div class="cursor-dot" id="cDot"></div>
   <div class="cursor-ring" id="cRing"></div>
 
+  <!-- LIGHTBOX -->
+  <div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
+    <img class="lightbox-img" id="lbImg" src="" alt="" />
+    <div class="lightbox-close" onclick="closeLightboxDirect()">x</div>
+    <div class="lightbox-label" id="lbLabel"></div>
+  </div>
+
   <nav>
     <div class="nav-logo"><span>GX</span>LD</div>
-    <a href="index.html" class="nav-back">← Back to Portfolio</a>
+    <a href="index.html" class="nav-back">Back to Portfolio</a>
   </nav>
 
   <div class="page-header">
     <div class="page-header-inner">
       <div class="eyebrow">Portfolio</div>
       <h1>All Work</h1>
-      <p class="page-sub">Every UI system and frame — from futuristic anime to ancient fantasy, all built in Figma and imported into Roblox.</p>
+      <p class="page-sub">Every UI system and frame. From futuristic anime to ancient fantasy, all built in Figma and imported into Roblox.</p>
     </div>
   </div>
 
@@ -147,123 +222,133 @@
     <div class="gallery-inner">
       <div class="gallery-grid">
 
-        <div class="g-card reveal d1">
+        <div class="g-card reveal d1" onclick="openLightbox('Images/UI/Futuristic Anime.png','Futuristic Anime UI')">
           <div class="g-img">
-            <img src="Images/UI/Futuristic Anime.png" alt="Futuristic Anime UI" loading="lazy" />
+            <img src="Images/UI/Futuristic Anime.png" alt="Futuristic Anime UI" loading="lazy" decoding="async" />
             <div class="g-overlay"></div>
+            <div class="g-click-hint">Click to enlarge</div>
           </div>
           <div class="g-badge">UI Design</div>
           <div class="g-body">
             <div class="g-title">Futuristic Anime UI</div>
-            <div class="g-meta">Game UI · Figma</div>
+            <div class="g-meta">Game UI / Figma</div>
           </div>
         </div>
 
-        <div class="g-card reveal d2">
+        <div class="g-card reveal d2" onclick="openLightbox('Images/UI/Futuristic Anime 2.png','Futuristic Anime UI II')">
           <div class="g-img">
-            <img src="Images/UI/Futuristic Anime 2.png" alt="Futuristic Anime UI 2" loading="lazy" />
+            <img src="Images/UI/Futuristic Anime 2.png" alt="Futuristic Anime UI 2" loading="lazy" decoding="async" />
             <div class="g-overlay"></div>
+            <div class="g-click-hint">Click to enlarge</div>
           </div>
           <div class="g-badge">UI Design</div>
           <div class="g-body">
             <div class="g-title">Futuristic Anime UI II</div>
-            <div class="g-meta">Game UI · Figma</div>
+            <div class="g-meta">Game UI / Figma</div>
           </div>
         </div>
 
-        <div class="g-card reveal d3">
+        <div class="g-card reveal d3" onclick="openLightbox('Images/UI/Book UI.webp','Ancient Book UI')">
           <div class="g-img">
-            <img src="Images/UI/Book UI.webp" alt="Ancient Book UI" loading="lazy" />
+            <img src="Images/UI/Book UI.webp" alt="Ancient Book UI" loading="lazy" decoding="async" />
             <div class="g-overlay"></div>
+            <div class="g-click-hint">Click to enlarge</div>
           </div>
           <div class="g-badge">UI Design</div>
           <div class="g-body">
             <div class="g-title">Ancient Book UI</div>
-            <div class="g-meta">Game UI · Figma</div>
+            <div class="g-meta">Game UI / Figma</div>
           </div>
         </div>
 
-        <div class="g-card reveal d4">
+        <div class="g-card reveal d4" onclick="openLightbox('Images/UI/Fost UI (1).webp','Anime Frost UI')">
           <div class="g-img">
-            <img src="Images/UI/Fost UI (1).webp" alt="Anime Frost UI" loading="lazy" />
+            <img src="Images/UI/Fost UI (1).webp" alt="Anime Frost UI" loading="lazy" decoding="async" />
             <div class="g-overlay"></div>
+            <div class="g-click-hint">Click to enlarge</div>
           </div>
           <div class="g-badge">UI + Import</div>
           <div class="g-body">
             <div class="g-title">Anime Frost UI</div>
-            <div class="g-meta">Game UI · Figma + Import</div>
+            <div class="g-meta">Game UI / Figma + Import</div>
           </div>
         </div>
 
-        <div class="g-card reveal d5">
+        <div class="g-card reveal d5" onclick="openLightbox('Images/UI/Neon Si-Fi UI.png','Neon Sci-Fi UI')">
           <div class="g-img">
-            <img src="Images/UI/Neon Si-Fi UI.png" alt="Neon Sci-Fi UI" loading="lazy" />
+            <img src="Images/UI/Neon Si-Fi UI.png" alt="Neon Sci-Fi UI" loading="lazy" decoding="async" />
             <div class="g-overlay"></div>
+            <div class="g-click-hint">Click to enlarge</div>
           </div>
           <div class="g-badge">UI + Import</div>
           <div class="g-body">
             <div class="g-title">Neon Sci-Fi UI</div>
-            <div class="g-meta">Game UI · Figma + Import</div>
+            <div class="g-meta">Game UI / Figma + Import</div>
           </div>
         </div>
 
-        <div class="g-card reveal d6">
+        <div class="g-card reveal d6" onclick="openLightbox('Images/UI/Neon Anime UI.png','Neon Anime UI')">
           <div class="g-img">
-            <img src="Images/UI/Neon Anime UI.png" alt="Neon Anime UI" loading="lazy" />
+            <img src="Images/UI/Neon Anime UI.png" alt="Neon Anime UI" loading="lazy" decoding="async" />
             <div class="g-overlay"></div>
+            <div class="g-click-hint">Click to enlarge</div>
           </div>
           <div class="g-badge">UI Design</div>
           <div class="g-body">
             <div class="g-title">Neon Anime UI</div>
-            <div class="g-meta">Game UI · Figma</div>
+            <div class="g-meta">Game UI / Figma</div>
           </div>
         </div>
 
-        <div class="g-card reveal d1">
+        <div class="g-card reveal d1" onclick="openLightbox('Images/UI/Si-Fi UI.png','Sci-Fi UI')">
           <div class="g-img">
-            <img src="Images/UI/Si-Fi UI.png" alt="Sci-Fi UI" loading="lazy" />
+            <img src="Images/UI/Si-Fi UI.png" alt="Sci-Fi UI" loading="lazy" decoding="async" />
             <div class="g-overlay"></div>
+            <div class="g-click-hint">Click to enlarge</div>
           </div>
           <div class="g-badge">UI Design</div>
           <div class="g-body">
             <div class="g-title">Sci-Fi UI</div>
-            <div class="g-meta">Game UI · Figma</div>
+            <div class="g-meta">Game UI / Figma</div>
           </div>
         </div>
 
-        <div class="g-card reveal d2">
+        <div class="g-card reveal d2" onclick="openLightbox('Images/UI/Western UI.png','Western UI')">
           <div class="g-img">
-            <img src="Images/UI/Western UI.png" alt="Western UI" loading="lazy" />
+            <img src="Images/UI/Western UI.png" alt="Western UI" loading="lazy" decoding="async" />
             <div class="g-overlay"></div>
+            <div class="g-click-hint">Click to enlarge</div>
           </div>
           <div class="g-badge">UI Design</div>
           <div class="g-body">
             <div class="g-title">Western UI</div>
-            <div class="g-meta">Game UI · Figma</div>
+            <div class="g-meta">Game UI / Figma</div>
           </div>
         </div>
 
-        <div class="g-card reveal d3">
+        <div class="g-card reveal d3" onclick="openLightbox('Images/UI/6BsZcdMtTXkRonvZQ7CSKewFbz8.avif','Custom UI')">
           <div class="g-img">
-            <img src="Images/UI/6BsZcdMtTXkRonvZQ7CSKewFbz8.avif" alt="UI Project" loading="lazy" />
+            <img src="Images/UI/6BsZcdMtTXkRonvZQ7CSKewFbz8.avif" alt="Custom UI" loading="lazy" decoding="async" />
             <div class="g-overlay"></div>
+            <div class="g-click-hint">Click to enlarge</div>
           </div>
           <div class="g-badge">UI + Import</div>
           <div class="g-body">
             <div class="g-title">Custom UI</div>
-            <div class="g-meta">Game UI · Figma + Import</div>
+            <div class="g-meta">Game UI / Figma + Import</div>
           </div>
         </div>
 
-        <div class="g-card reveal d4">
+        <div class="g-card reveal d4" onclick="openLightbox('Images/UI/shnWMJCLCloYO0D6wRiZ4x45A.webp','Custom UI II')">
           <div class="g-img">
-            <img src="Images/UI/shnWMJCLCloYO0D6wRiZ4x45A.webp" alt="UI Project" loading="lazy" />
+            <img src="Images/UI/shnWMJCLCloYO0D6wRiZ4x45A.webp" alt="Custom UI II" loading="lazy" decoding="async" />
             <div class="g-overlay"></div>
+            <div class="g-click-hint">Click to enlarge</div>
           </div>
           <div class="g-badge">UI Design</div>
           <div class="g-body">
             <div class="g-title">Custom UI II</div>
-            <div class="g-meta">Game UI · Figma</div>
+            <div class="g-meta">Game UI / Figma</div>
           </div>
         </div>
 
@@ -274,26 +359,54 @@
   <footer>
     <div class="footer-inner">
       <div class="footer-logo"><span>GX</span>LD</div>
-      <div class="footer-copy">© 2025 GXLD · Roblox UI Designer</div>
+      <div class="footer-copy">2025 GXLD - Roblox UI Designer</div>
       <a href="https://discord.com/users/1188805446455271426" target="_blank" class="footer-dc">💬 gxld_ofc</a>
     </div>
   </footer>
 
   <script>
+    // CURSOR - rAF throttled
     const cDot = document.getElementById('cDot');
     const cRing = document.getElementById('cRing');
+    let mx = 0, my = 0, raf = false;
     document.addEventListener('mousemove', e => {
-      cDot.style.left = e.clientX + 'px'; cDot.style.top = e.clientY + 'px';
-      cRing.style.left = e.clientX + 'px'; cRing.style.top = e.clientY + 'px';
+      mx = e.clientX; my = e.clientY;
+      if (!raf) {
+        raf = true;
+        requestAnimationFrame(() => {
+          cDot.style.left = mx + 'px'; cDot.style.top = my + 'px';
+          cRing.style.left = mx + 'px'; cRing.style.top = my + 'px';
+          raf = false;
+        });
+      }
     });
-    document.querySelectorAll('a,.g-card').forEach(el => {
+    document.querySelectorAll('a, .g-card, .lightbox-close').forEach(el => {
       el.addEventListener('mouseenter', () => cRing.classList.add('hovered'));
       el.addEventListener('mouseleave', () => cRing.classList.remove('hovered'));
     });
+
+    // SCROLL REVEAL - opacity only, no transform (faster)
     const io = new IntersectionObserver(entries => {
       entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('shown'); io.unobserve(e.target); } });
-    }, { threshold: 0.08 });
+    }, { threshold: 0.06 });
     document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+    // LIGHTBOX
+    const lb = document.getElementById('lightbox');
+    const lbImg = document.getElementById('lbImg');
+    const lbLabel = document.getElementById('lbLabel');
+
+    function openLightbox(src, label) {
+      lbImg.src = src; lbImg.alt = label; lbLabel.textContent = label;
+      lb.classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeLightboxDirect() {
+      lb.classList.remove('active');
+      document.body.style.overflow = '';
+    }
+    function closeLightbox(e) { if (e.target === lb) closeLightboxDirect(); }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightboxDirect(); });
   </script>
 </body>
 </html>
