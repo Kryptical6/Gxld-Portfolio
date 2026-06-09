@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GXLD — Roblox UI Designer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --gold: #C9A84C;
+      --gold-dim: rgba(201,168,76,0.15);
+      --gold-glow: rgba(201,168,76,0.06);
+      --bg: #080808;
+      --bg2: #0d0d0d;
+      --bg3: #111111;
+      --border: rgba(255,255,255,0.06);
+      --border-gold: rgba(201,168,76,0.25);
+      --text: #ffffff;
+      --text-2: #999999;
+      --text-3: #555555;
+      --text-4: #333333;
+      --font-display: 'Space Grotesk', sans-serif;
+      --font-body: 'Inter', sans-serif;
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-body);
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+      cursor: none;
+    }
+    a { text-decoration: none; color: inherit; }
+
+    /* ─── CURSOR ─── */
+    .cursor-dot {
+      width: 6px; height: 6px;
+      background: var(--gold);
+      border-radius: 50%;
+      position: fixed; top: 0; left: 0;
+      pointer-events: none; z-index: 9999;
+      transform: translate(-50%, -50%);
+    }
+    .cursor-ring {
+      width: 32px; height: 32px;
+      border: 1px solid rgba(201,168,76,0.4);
+      border-radius: 50%;
+      position: fixed; top: 0; left: 0;
+      pointer-events: none; z-index: 9998;
+      transform: translate(-50%, -50%);
+      transition: left 0.1s ease, top 0.1s ease, width 0.3s ease, height 0.3s ease, border-color 0.3s ease, background 0.3s ease;
+    }
+    .cursor-ring.hovered {
+      width: 50px; height: 50px;
+      border-color: var(--gold);
+      background: rgba(201,168,76,0.05);
+    }
+
+    /* ─── NOISE ─── */
+    body::after {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 8999; opacity: 0.5;
+    }
+
+    /* ─── NAV ─── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+      padding: 18px 52px;
+      display: flex; align-items: center; justify-content: space-between;
+      background: rgba(8,8,8,0.6);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border-bottom: 1px solid var(--border);
+      transition: background 0.4s, border-color 0.4s;
+    }
+    nav.scrolled { background: rgba(8,8,8,0.95); border-color: rgba(255,255,255,0.09); }
+    .nav-logo {
+      font-family: var(--font-display);
+      font-size: 18px; font-weight: 700;
+      letter-spacing: 4px; color: var(--text);
+    }
+    .nav-logo .g { color: var(--gold); }
+    .nav-links { display: flex; gap: 32px; align-items: center; }
+    .nav-link {
+      font-size: 12px; letter-spacing: 1px; text-transform: uppercase;
+      color: var(--text-3); cursor: none;
+      transition: color 0.2s;
+    }
+    .nav-link:hover, .nav-link.active { color: var(--text); }
+    .nav-cta {
+      font-size: 12px; font-weight: 600; letter-spacing: 0.5px;
+      background: var(--gold); color: #080808;
+      padding: 9px 22px; border-radius: 6px;
+      cursor: none;
+      transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+    }
+    .nav-cta:hover {
+      background: #dbb85a;
+      transform: translateY(-1px);
+      box-shadow: 0 0 24px rgba(201,168,76,0.3);
+    }
+
+    /* ─── HERO ─── */
+    .hero {
+      min-height: 100vh;
+      display: flex; flex-direction: column; justify-content: center;
+      padding: 130px 52px 90px;
+      position: relative; overflow: hidden;
+    }
+    .hero-grid-bg {
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 52px 52px;
+      mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
+      pointer-events: none;
+    }
+    .hero-glow {
+      position: absolute; top: -15%; left: 50%;
+      transform: translateX(-50%);
+      width: 1000px; height: 700px;
+      background: radial-gradient(ellipse, rgba(201,168,76,0.055) 0%, transparent 65%);
+      pointer-events: none;
+    }
+    .hero-glow-corner {
+      position: absolute; bottom: 5%; right: -5%;
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(201,168,76,0.03) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-content { position: relative; z-index: 2; max-width: 860px; }
+
+    .hero-eyebrow {
+      display: inline-flex; align-items: center; gap: 10px;
+      font-size: 11px; letter-spacing: 3px; color: var(--gold);
+      text-transform: uppercase; margin-bottom: 28px;
+      opacity: 0; animation: fadeUp 0.7s ease 0.2s forwards;
+    }
+    .hero-eyebrow::before { content:''; width:24px; height:1px; background:var(--gold); }
+    .avail-dot {
+      width: 7px; height: 7px; border-radius: 50%; background: #4ade80;
+      box-shadow: 0 0 8px #4ade80;
+      animation: pulseGreen 2s ease infinite;
+    }
+    @keyframes pulseGreen {
+      0%,100%{ box-shadow:0 0 6px #4ade80; }
+      50%{ box-shadow:0 0 16px #4ade80, 0 0 28px rgba(74,222,128,0.35); }
+    }
+    .hero-title {
+      font-family: var(--font-display);
+      font-size: clamp(54px, 7.5vw, 100px);
+      font-weight: 700; line-height: 1.0; letter-spacing: -2.5px;
+      margin-bottom: 28px;
+      opacity: 0; animation: fadeUp 0.7s ease 0.35s forwards;
+    }
+    .hero-title .gold { color: var(--gold); }
+    .hero-title .outline {
+      -webkit-text-stroke: 1.5px rgba(255,255,255,0.2);
+      color: transparent;
+    }
+    .hero-sub {
+      font-size: 15px; color: var(--text-2);
+      max-width: 480px; line-height: 1.85; margin-bottom: 44px;
+      opacity: 0; animation: fadeUp 0.7s ease 0.5s forwards;
+    }
+    .hero-btns {
+      display: flex; gap: 12px; align-items: center; margin-bottom: 72px;
+      opacity: 0; animation: fadeUp 0.7s ease 0.65s forwards;
+    }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 13px; font-weight: 600;
+      background: var(--gold); color: #080808;
+      padding: 13px 26px; border-radius: var(--radius-sm);
+      cursor: none;
+      transition: background 0.2s, transform 0.25s cubic-bezier(0.16,1,0.3,1), box-shadow 0.25s;
+    }
+    .btn-primary:hover {
+      background: #dbb85a;
+      transform: translateY(-3px);
+      box-shadow: 0 10px 36px rgba(201,168,76,0.32);
+    }
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 13px; font-weight: 500; color: var(--text-2);
+      padding: 13px 26px; border-radius: var(--radius-sm);
+      border: 1px solid var(--border); cursor: none;
+      transition: border-color 0.2s, color 0.2s, transform 0.25s cubic-bezier(0.16,1,0.3,1);
+    }
+    .btn-secondary:hover {
+      border-color: rgba(255,255,255,0.15); color: var(--text);
+      transform: translateY(-3px);
+    }
+    .hero-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      padding-top: 36px; border-top: 1px solid var(--border);
+      opacity: 0; animation: fadeUp 0.7s ease 0.8s forwards;
+    }
+    .hero-tools { display: flex; align-items: center; gap: 10px; }
+    .tools-label {
+      font-size: 10px; letter-spacing: 2px; color: var(--text-4);
+      text-transform: uppercase; margin-right: 6px;
+    }
+    .tool-chip {
+      width: 34px; height: 34px;
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 600; color: var(--text-3);
+      cursor: none;
+      transition: border-color 0.2s, color 0.2s, transform 0.2s;
+    }
+    .tool-chip:hover { border-color: var(--border-gold); color: var(--gold); transform: translateY(-2px); }
+    .tool-chip.active { border-color: var(--border-gold); color: var(--gold); background: var(--gold-glow); }
+    .hero-stats { display: flex; gap: 48px; }
+    .stat {
+      text-align: right;
+    }
+    .stat-num {
+      font-family: var(--font-display);
+      font-size: 30px; font-weight: 700; line-height: 1;
+      color: var(--gold);
+    }
+    .stat-label {
+      font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+      color: var(--text-4); margin-top: 5px;
+    }
+
+    /* ─── MARQUEE ─── */
+    .marquee-wrap {
+      overflow: hidden;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg2); padding: 16px 0;
+    }
+    .marquee-track {
+      display: flex; gap: 0;
+      animation: marquee 28s linear infinite;
+      white-space: nowrap;
+    }
+    .marquee-item {
+      display: inline-flex; align-items: center; gap: 20px;
+      padding: 0 36px;
+      font-size: 10px; letter-spacing: 2.5px;
+      text-transform: uppercase; color: var(--text-4);
+    }
+    .marquee-star { color: var(--gold); font-size: 7px; }
+    @keyframes marquee {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    /* ─── SECTION COMMON ─── */
+    section { padding: 100px 52px; position: relative; }
+    .section-inner { max-width: 1200px; margin: 0 auto; }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 10px; letter-spacing: 3px; color: var(--gold);
+      text-transform: uppercase; margin-bottom: 14px;
+    }
+    .eyebrow::before { content:''; width:16px; height:1px; background:var(--gold); }
+    h2.section-title {
+      font-family: var(--font-display);
+      font-size: clamp(32px, 4vw, 52px);
+      font-weight: 700; letter-spacing: -1.5px; line-height: 1.1;
+      margin-bottom: 52px;
+    }
+    .sh-row {
+      display: flex; justify-content: space-between; align-items: flex-end;
+      margin-bottom: 40px;
+    }
+    .sh-row h2.section-title { margin-bottom: 0; }
+
+    /* ─── WORK ─── */
+    #work { background: var(--bg); }
+    .portfolio-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    }
+    .work-card {
+      border-radius: var(--radius);
+      overflow: hidden; background: var(--bg3);
+      border: 1px solid var(--border);
+      position: relative; cursor: none;
+      transition: transform 0.45s cubic-bezier(0.16,1,0.3,1), box-shadow 0.4s ease, border-color 0.3s ease;
+    }
+    .work-card:hover {
+      transform: translateY(-8px);
+      border-color: var(--border-gold);
+      box-shadow: 0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px var(--border-gold);
+    }
+    .work-img {
+      width: 100%; height: 210px; overflow: hidden; position: relative;
+    }
+    .work-img img {
+      width: 100%; height: 100%; object-fit: cover;
+      transition: transform 0.65s cubic-bezier(0.16,1,0.3,1), filter 0.4s ease;
+      filter: brightness(0.8) saturate(0.85);
+    }
+    .work-card:hover .work-img img {
+      transform: scale(1.07);
+      filter: brightness(1.05) saturate(1.1);
+    }
+    .work-overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(180deg, transparent 45%, rgba(8,8,8,0.85) 100%);
+      pointer-events: none;
+    }
+    .work-badge {
+      position: absolute; top: 12px; right: 12px;
+      font-size: 9px; font-weight: 700; letter-spacing: 1px;
+      text-transform: uppercase;
+      background: var(--gold); color: #080808;
+      padding: 4px 10px; border-radius: 4px;
+      opacity: 0; transform: translateY(-4px);
+      transition: opacity 0.3s, transform 0.3s;
+    }
+    .work-card:hover .work-badge { opacity: 1; transform: translateY(0); }
+    .work-body { padding: 16px 20px 20px; }
+    .work-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 5px; }
+    .work-meta { font-size: 11px; color: var(--text-3); letter-spacing: 0.5px; }
+    .view-all-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12px; color: var(--gold);
+      border: 1px solid var(--border-gold);
+      padding: 8px 18px; border-radius: 6px;
+      cursor: none;
+      transition: background 0.2s, transform 0.2s;
+    }
+    .view-all-btn:hover { background: var(--gold-dim); transform: translateX(3px); }
+
+    /* ─── PRICING ─── */
+    #pricing { background: var(--bg2); }
+    .pricing-grid {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;
+    }
+    .price-card {
+      border-radius: 16px; padding: 28px 24px;
+      border: 1px solid var(--border);
+      background: var(--bg3);
+      position: relative; overflow: hidden; cursor: none;
+      transition: transform 0.35s ease, box-shadow 0.35s ease, border-color 0.3s;
+    }
+    .price-card::after {
+      content: '';
+      position: absolute; top: 0; right: 0;
+      width: 200px; height: 200px;
+      background: radial-gradient(circle at top right, rgba(201,168,76,0.05), transparent 70%);
+      pointer-events: none;
+    }
+    .price-card:hover { transform: translateY(-5px); box-shadow: 0 20px 56px rgba(0,0,0,0.35); }
+    .price-card.featured {
+      border-color: var(--border-gold);
+      background: #0d0c00;
+    }
+    .price-card.featured::after {
+      background: radial-gradient(circle at top right, rgba(201,168,76,0.1), transparent 65%);
+    }
+    .price-card.featured:hover { box-shadow: 0 20px 56px rgba(201,168,76,0.12); }
+    .price-badge-tag {
+      display: inline-block;
+      font-size: 9px; font-weight: 700; letter-spacing: 1.5px;
+      background: var(--gold); color: #080808;
+      padding: 4px 10px; border-radius: 4px; margin-bottom: 16px;
+    }
+    .price-tier {
+      font-size: 11px; font-weight: 500; letter-spacing: 1.5px;
+      text-transform: uppercase; color: var(--text-3); margin-bottom: 10px;
+    }
+    .price-amount {
+      font-family: var(--font-display);
+      font-size: 38px; font-weight: 700; line-height: 1;
+      color: var(--text); margin-bottom: 4px;
+    }
+    .price-amount sub { font-size: 13px; font-weight: 400; color: var(--text-3); vertical-align: baseline; }
+    .price-brl { font-size: 11px; color: var(--text-4); }
+    .price-div {
+      height: 1px; background: var(--border); margin: 22px 0;
+    }
+    .price-card.featured .price-div { background: rgba(201,168,76,0.12); }
+    .pf {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 12px; color: var(--text-3); padding: 5px 0;
+    }
+    .pf.on { color: #bbb; }
+    .pf-dot { width: 5px; height: 5px; border-radius: 50%; background: #2a2a2a; flex-shrink: 0; }
+    .pf-dot.on { background: var(--gold); box-shadow: 0 0 6px rgba(201,168,76,0.45); }
+    .price-btn {
+      display: block; text-align: center;
+      margin-top: 24px; font-size: 13px; font-weight: 600;
+      padding: 12px; border-radius: 8px;
+      background: var(--bg2); color: var(--text-3);
+      border: 1px solid var(--border); cursor: none;
+      transition: background 0.2s, color 0.2s, transform 0.2s, box-shadow 0.2s;
+    }
+    .price-btn:hover { background: var(--bg3); color: var(--text); transform: translateY(-1px); }
+    .price-btn.gold {
+      background: var(--gold); color: #080808; border-color: transparent;
+    }
+    .price-btn.gold:hover {
+      background: #dbb85a;
+      box-shadow: 0 8px 28px rgba(201,168,76,0.38);
+    }
+
+    /* ─── PROCESS ─── */
+    #process { background: var(--bg); }
+    .process-grid {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;
+      position: relative;
+    }
+    .process-grid::after {
+      content: '';
+      position: absolute; top: 36px;
+      left: calc(33.3% + 12px); right: calc(33.3% + 12px);
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border-gold) 20%, var(--border-gold) 80%, transparent);
+      pointer-events: none;
+    }
+    .process-card {
+      padding: 28px 24px;
+      border: 1px solid var(--border); border-radius: var(--radius);
+      background: var(--bg3); position: relative;
+      transition: border-color 0.3s, transform 0.35s ease;
+    }
+    .process-card:hover { border-color: var(--border-gold); transform: translateY(-4px); }
+    .pc-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: var(--gold-glow); border: 1px solid var(--border-gold);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; margin-bottom: 20px;
+    }
+    .pc-num {
+      font-size: 10px; font-weight: 700; letter-spacing: 2px;
+      color: var(--gold); text-transform: uppercase; margin-bottom: 12px;
+    }
+    .pc-title {
+      font-family: var(--font-display);
+      font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 10px;
+    }
+    .pc-desc { font-size: 13px; color: var(--text-3); line-height: 1.75; }
+
+    /* ─── FAQ ─── */
+    #faq { background: var(--bg2); }
+    #faq .section-inner { max-width: 760px; }
+    #faq h2.section-title { text-align: center; }
+    .faq-list { }
+    .faq-item { border-bottom: 1px solid var(--border); }
+    .faq-q {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 22px 0; cursor: none;
+    }
+    .faq-q-text {
+      font-size: 14px; font-weight: 500; color: var(--text-2);
+      transition: color 0.2s;
+    }
+    .faq-q-text.open { color: var(--text); }
+    .faq-q:hover .faq-q-text { color: var(--text); }
+    .faq-icon {
+      width: 26px; height: 26px; border-radius: 50%;
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; color: var(--text-4);
+      flex-shrink: 0; margin-left: 20px;
+      transition: border-color 0.2s, color 0.2s, background 0.2s, transform 0.35s;
+    }
+    .faq-icon.open {
+      border-color: var(--border-gold); color: var(--gold);
+      background: var(--gold-glow); transform: rotate(45deg);
+    }
+    .faq-body {
+      max-height: 0; overflow: hidden;
+      transition: max-height 0.45s cubic-bezier(0.16,1,0.3,1), padding 0.3s;
+    }
+    .faq-body.open { max-height: 260px; padding-bottom: 22px; }
+    .faq-a {
+      font-size: 13px; color: var(--text-3); line-height: 1.85; max-width: 580px;
+    }
+    .faq-a a { color: var(--gold); border-bottom: 1px solid var(--border-gold); transition: color 0.2s; }
+    .faq-a a:hover { color: #dbb85a; }
+
+    /* ─── FOOTER ─── */
+    footer {
+      padding: 44px 52px; border-top: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .footer-inner {
+      max-width: 1200px; margin: 0 auto;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .footer-logo {
+      font-family: var(--font-display);
+      font-size: 16px; font-weight: 700; letter-spacing: 4px;
+    }
+    .footer-logo span { color: var(--gold); }
+    .footer-copy { font-size: 11px; color: var(--text-4); letter-spacing: 0.5px; }
+    .footer-discord {
+      display: inline-flex; align-items: center; gap: 9px;
+      font-size: 12px; color: var(--text-3);
+      border: 1px solid var(--border); padding: 9px 18px; border-radius: 6px;
+      cursor: none;
+      transition: border-color 0.2s, color 0.2s, background 0.2s;
+    }
+    .footer-discord:hover {
+      border-color: var(--border-gold); color: var(--gold); background: var(--gold-glow);
+    }
+
+    /* ─── REVEAL ─── */
+    .reveal {
+      opacity: 0; transform: translateY(26px);
+      transition: opacity 0.7s cubic-bezier(0.16,1,0.3,1), transform 0.7s cubic-bezier(0.16,1,0.3,1);
+    }
+    .reveal.shown { opacity: 1; transform: translateY(0); }
+    .delay-1 { transition-delay: 0.1s; }
+    .delay-2 { transition-delay: 0.2s; }
+    .delay-3 { transition-delay: 0.3s; }
+    .delay-4 { transition-delay: 0.4s; }
+    .delay-5 { transition-delay: 0.5s; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ─── SCROLLBAR ─── */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: #252525; border-radius: 2px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+  </style>
+</head>
+<body>
+
+  <div class="cursor-dot" id="cDot"></div>
+  <div class="cursor-ring" id="cRing"></div>
+
+  <!-- ─── NAV ─── -->
+  <nav id="mainNav">
+    <div class="nav-logo"><span class="g">GX</span>LD</div>
+    <div class="nav-links">
+      <a href="#hero"    class="nav-link active">Home</a>
+      <a href="#work"    class="nav-link">Work</a>
+      <a href="#pricing" class="nav-link">Pricing</a>
+      <a href="#faq"     class="nav-link">FAQ</a>
+    </div>
+    <a href="https://discord.com/users/1188805446455271426" target="_blank" class="nav-cta">Let's Talk</a>
+  </nav>
+
+  <!-- ─── HERO ─── -->
+  <section class="hero" id="hero">
+    <div class="hero-grid-bg"></div>
+    <div class="hero-glow"></div>
+    <div class="hero-glow-corner"></div>
+
+    <div class="hero-content">
+      <div class="hero-eyebrow">
+        <div class="avail-dot"></div>
+        Roblox UI Designer — Available for hire
+      </div>
+
+      <h1 class="hero-title">
+        Crafting <span class="gold">bold</span>,<br>
+        <span class="outline">minimal</span> UI.
+      </h1>
+
+      <p class="hero-sub">
+        Affordable, high‑quality Roblox UI — designed in Figma and imported with precision. From concept to full delivery, every frame built to stand out.
+      </p>
+
+      <div class="hero-btns">
+        <a href="#work"    class="btn-primary">View My Work →</a>
+        <a href="#pricing" class="btn-secondary">See Pricing</a>
+      </div>
+
+      <div class="hero-footer">
+        <div class="hero-tools">
+          <span class="tools-label">Tools</span>
+          <div class="tool-chip" title="Figma">Fg</div>
+          <div class="tool-chip" title="Photoshop">Ps</div>
+          <div class="tool-chip active" title="Discord">Dc</div>
+          <div class="tool-chip" title="X / Twitter">𝕏</div>
+        </div>
+        <div class="hero-stats">
+          <div class="stat">
+            <div class="stat-num">50+</div>
+            <div class="stat-label">Frames delivered</div>
+          </div>
+          <div class="stat">
+            <div class="stat-num">17.5M</div>
+            <div class="stat-label">Visit contributions</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── MARQUEE ─── -->
+  <div class="marquee-wrap">
+    <div class="marquee-track">
+      <span class="marquee-item">Roblox UI Design<span class="marquee-star">✦</span></span>
+      <span class="marquee-item">Figma Frames<span class="marquee-star">✦</span></span>
+      <span class="marquee-item">Game UI Import<span class="marquee-star">✦</span></span>
+      <span class="marquee-item">Custom UI Systems<span class="marquee-star">✦</span></span>
+      <span class="marquee-item">50+ Frames Delivered<span class="marquee-star">✦</span></span>
+      <span class="marquee-item">17.5M Visit Contributions<span class="marquee-star">✦</span></span>
+      <span class="marquee-item">Source Files Included<span class="marquee-star">✦</span></span>
+      <span class="marquee-item">Roblox UI Design<span class="marquee-star">✦</span></span>
+      <span class="marquee-item">Figma Frames<span class="marquee-star">✦</span></span>
+      <span class="marquee-item">Game UI Import<span class="marquee-star">✦</span></span>
+      <span class="marquee-item">Custom UI Systems<span class="marquee-star">✦</span></span>
+      <span class="marquee-item">50+ Frames Delivered<span class="marquee-star">✦</span></span>
+      <span class="marquee-item">17.5M Visit Contributions<span class="marquee-star">✦</span></span>
+      <span class="marquee-item">Source Files Included<span class="marquee-star">✦</span></span>
+    </div>
+  </div>
+
+  <!-- ─── WORK ─── -->
+  <section id="work">
+    <div class="section-inner">
+      <div class="sh-row">
+        <div class="reveal">
+          <div class="eyebrow">Portfolio</div>
+          <h2 class="section-title" style="margin-bottom:0">Past Work</h2>
+        </div>
+        <a href="gallery.html" class="view-all-btn reveal delay-2">View all →</a>
+      </div>
+      <div class="portfolio-grid">
+        <div class="work-card reveal delay-1">
+          <div class="work-img">
+            <img src="Images/UI/Futuristic Anime.png" alt="Futuristic Anime UI" loading="lazy" />
+            <div class="work-overlay"></div>
+          </div>
+          <div class="work-badge">UI Design</div>
+          <div class="work-body">
+            <div class="work-title">Futuristic Anime UI</div>
+            <div class="work-meta">Game UI · Figma</div>
+          </div>
+        </div>
+        <div class="work-card reveal delay-2">
+          <div class="work-img">
+            <img src="Images/UI/Book UI.webp" alt="Ancient Book UI" loading="lazy" />
+            <div class="work-overlay"></div>
+          </div>
+          <div class="work-badge">UI Design</div>
+          <div class="work-body">
+            <div class="work-title">Ancient Book UI</div>
+            <div class="work-meta">Game UI · Figma</div>
+          </div>
+        </div>
+        <div class="work-card reveal delay-3">
+          <div class="work-img">
+            <img src="Images/UI/Fost UI (1).webp" alt="Anime Frost UI" loading="lazy" />
+            <div class="work-overlay"></div>
+          </div>
+          <div class="work-badge">UI + Import</div>
+          <div class="work-body">
+            <div class="work-title">Anime Frost UI</div>
+            <div class="work-meta">Game UI · Figma + Import</div>
+          </div>
+        </div>
+        <div class="work-card reveal delay-4">
+          <div class="work-img">
+            <img src="Images/UI/Neon Si-Fi UI.png" alt="Neon Sci-Fi UI" loading="lazy" />
+            <div class="work-overlay"></div>
+          </div>
+          <div class="work-badge">UI + Import</div>
+          <div class="work-body">
+            <div class="work-title">Neon Sci-Fi UI</div>
+            <div class="work-meta">Game UI · Figma + Import</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── PRICING ─── -->
+  <section id="pricing">
+    <div class="section-inner">
+      <div class="reveal">
+        <div class="eyebrow">Simple Pricing</div>
+        <h2 class="section-title">Easy. Quick. Secure.</h2>
+      </div>
+      <div class="pricing-grid">
+
+        <div class="price-card reveal delay-1">
+          <div class="price-tier">Import Only</div>
+          <div class="price-amount">$10 <sub>/ frame</sub></div>
+          <div class="price-brl">≈ R$57 per frame</div>
+          <div class="price-div"></div>
+          <div class="pf on"><div class="pf-dot on"></div>Style of your choice</div>
+          <div class="pf on"><div class="pf-dot on"></div>High quality delivery</div>
+          <div class="pf on"><div class="pf-dot on"></div>All files included</div>
+          <div class="pf on"><div class="pf-dot on"></div>Full Roblox import</div>
+          <div class="pf"><div class="pf-dot"></div>Custom UI design</div>
+          <div class="pf"><div class="pf-dot"></div>Daily progress updates</div>
+          <a href="https://discord.com/users/1188805446455271426" target="_blank" class="price-btn">Let's Talk</a>
+        </div>
+
+        <div class="price-card featured reveal delay-2">
+          <div class="price-badge-tag">BEST VALUE</div>
+          <div class="price-tier">UI + Import</div>
+          <div class="price-amount">$20 <sub>/ frame</sub></div>
+          <div class="price-brl">≈ R$114 per frame</div>
+          <div class="price-div"></div>
+          <div class="pf on"><div class="pf-dot on"></div>Style of your choice</div>
+          <div class="pf on"><div class="pf-dot on"></div>High quality delivery</div>
+          <div class="pf on"><div class="pf-dot on"></div>All files included</div>
+          <div class="pf on"><div class="pf-dot on"></div>Full Roblox import</div>
+          <div class="pf on"><div class="pf-dot on"></div>Custom UI design</div>
+          <div class="pf on"><div class="pf-dot on"></div>Daily progress updates</div>
+          <a href="https://discord.com/users/1188805446455271426" target="_blank" class="price-btn gold">Let's Talk</a>
+        </div>
+
+        <div class="price-card reveal delay-3">
+          <div class="price-tier">UI Only</div>
+          <div class="price-amount">$15 <sub>/ frame</sub></div>
+          <div class="price-brl">≈ R$86 per frame</div>
+          <div class="price-div"></div>
+          <div class="pf on"><div class="pf-dot on"></div>Style of your choice</div>
+          <div class="pf on"><div class="pf-dot on"></div>High quality delivery</div>
+          <div class="pf on"><div class="pf-dot on"></div>All files included</div>
+          <div class="pf"><div class="pf-dot"></div>Full Roblox import</div>
+          <div class="pf on"><div class="pf-dot on"></div>Custom UI design</div>
+          <div class="pf on"><div class="pf-dot on"></div>Daily progress updates</div>
+          <a href="https://discord.com/users/1188805446455271426" target="_blank" class="price-btn">Let's Talk</a>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── PROCESS ─── -->
+  <section id="process">
+    <div class="section-inner">
+      <div class="reveal">
+        <div class="eyebrow">How it works</div>
+        <h2 class="section-title">The Process</h2>
+      </div>
+      <div class="process-grid">
+        <div class="process-card reveal delay-1">
+          <div class="pc-icon">✉️</div>
+          <div class="pc-num">01 — Hire</div>
+          <div class="pc-title">Send a Message</div>
+          <div class="pc-desc">DM me on Discord with your project details — style references, frames needed, deadline — and we'll agree on a price together.</div>
+        </div>
+        <div class="process-card reveal delay-2">
+          <div class="pc-icon">🎨</div>
+          <div class="pc-num">02 — Build</div>
+          <div class="pc-title">Production</div>
+          <div class="pc-desc">I design and build your UI in Figma. You get daily progress updates so you're never left in the dark throughout the project.</div>
+        </div>
+        <div class="process-card reveal delay-3">
+          <div class="pc-icon">📦</div>
+          <div class="pc-num">03 — Done</div>
+          <div class="pc-title">Delivery</div>
+          <div class="pc-desc">You review the finished UI, pay on approval, and receive all source files — fully imported and ready to ship in Roblox.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── FAQ ─── -->
+  <section id="faq">
+    <div class="section-inner">
+      <div class="reveal">
+        <div class="eyebrow" style="display:flex;justify-content:center">Questions</div>
+        <h2 class="section-title">Frequently Asked</h2>
+      </div>
+      <div class="faq-list">
+
+        <div class="faq-item reveal">
+          <div class="faq-q" onclick="toggleFaq(this)">
+            <span class="faq-q-text open">How long does the process take?</span>
+            <div class="faq-icon open">+</div>
+          </div>
+          <div class="faq-body open">
+            <p class="faq-a">Usually between 2 days and 2 weeks depending on the scale and complexity of the job. Single frames with a clear brief are typically done within 2–3 days. Larger UI systems may take longer — I'll always give you a clear timeline upfront.</p>
+          </div>
+        </div>
+
+        <div class="faq-item reveal delay-1">
+          <div class="faq-q" onclick="toggleFaq(this)">
+            <span class="faq-q-text">Where can I contact you?</span>
+            <div class="faq-icon">+</div>
+          </div>
+          <div class="faq-body">
+            <p class="faq-a">The best way to reach me is through Discord — my username is <a href="https://discord.com/users/1188805446455271426" target="_blank">gxld_ofc</a>. You can also click any "Let's Talk" button on this page to jump straight to my profile.</p>
+          </div>
+        </div>
+
+        <div class="faq-item reveal delay-2">
+          <div class="faq-q" onclick="toggleFaq(this)">
+            <span class="faq-q-text">What is importing?</span>
+            <div class="faq-icon">+</div>
+          </div>
+          <div class="faq-body">
+            <p class="faq-a">Importing is the process of taking a Figma UI design and fully implementing it inside Roblox Studio — including all elements, layout, sizing, fonts, and scripted interactions. Without importing, a design is just a file. Importing makes it live and functional in your game.</p>
+          </div>
+        </div>
+
+        <div class="faq-item reveal delay-3">
+          <div class="faq-q" onclick="toggleFaq(this)">
+            <span class="faq-q-text">Why do you provide the original files?</span>
+            <div class="faq-icon">+</div>
+          </div>
+          <div class="faq-body">
+            <p class="faq-a">I believe you should fully own what you paid for. The original Figma source files mean you can edit, update, or hand off the design to another developer in the future — no lock-in. It's the professional standard and a mark of quality.</p>
+          </div>
+        </div>
+
+        <div class="faq-item reveal delay-4">
+          <div class="faq-q" onclick="toggleFaq(this)">
+            <span class="faq-q-text">Do you do revisions?</span>
+            <div class="faq-icon">+</div>
+          </div>
+          <div class="faq-body">
+            <p class="faq-a">Yes. Since you receive daily updates during production, most changes can be made before final delivery. Minor revisions after delivery are included. If requirements change significantly mid-project, we'll discuss it fairly.</p>
+          </div>
+        </div>
+
+        <div class="faq-item reveal delay-5">
+          <div class="faq-q" onclick="toggleFaq(this)">
+            <span class="faq-q-text">When do I pay?</span>
+            <div class="faq-icon">+</div>
+          </div>
+          <div class="faq-body">
+            <p class="faq-a">Payment is after you've reviewed and approved the finished UI — you don't pay until you're happy with the result. Message me on Discord to discuss payment methods that work for you.</p>
+          </div>
+        </div>
+
+        <div class="faq-item reveal delay-5">
+          <div class="faq-q" onclick="toggleFaq(this)">
+            <span class="faq-q-text">Can you match a specific art style or theme?</span>
+            <div class="faq-icon">+</div>
+          </div>
+          <div class="faq-body">
+            <p class="faq-a">Absolutely. Medieval, futuristic, anime, minimal, western — whatever your game needs. Send references and I'll design to match. The more detail you give me upfront, the better the result.</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── FOOTER ─── -->
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-logo"><span>GX</span>LD</div>
+      <div class="footer-copy">© 2025 GXLD · Roblox UI Designer</div>
+      <a href="https://discord.com/users/1188805446455271426" target="_blank" class="footer-discord">
+        💬 gxld_ofc
+      </a>
+    </div>
+  </footer>
+
+  <script>
+    // ─── CURSOR ───
+    const cDot = document.getElementById('cDot');
+    const cRing = document.getElementById('cRing');
+
+    document.addEventListener('mousemove', e => {
+      cDot.style.left = e.clientX + 'px';
+      cDot.style.top  = e.clientY + 'px';
+      cRing.style.left = e.clientX + 'px';
+      cRing.style.top  = e.clientY + 'px';
+    });
+
+    document.querySelectorAll('a, button, [onclick], .work-card, .price-card, .process-card, .tool-chip').forEach(el => {
+      el.addEventListener('mouseenter', () => cRing.classList.add('hovered'));
+      el.addEventListener('mouseleave', () => cRing.classList.remove('hovered'));
+    });
+
+    // ─── NAV SCROLL ───
+    const nav = document.getElementById('mainNav');
+    const navLinks = document.querySelectorAll('.nav-link');
+
+    window.addEventListener('scroll', () => {
+      nav.classList.toggle('scrolled', window.scrollY > 50);
+      // active link
+      const secs = ['hero','work','pricing','process','faq'];
+      let current = 'hero';
+      secs.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && el.getBoundingClientRect().top < 100) current = id;
+      });
+      navLinks.forEach(l => l.classList.toggle('active', l.getAttribute('href') === '#' + current));
+    });
+
+    // ─── SCROLL REVEAL ───
+    const io = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting) { e.target.classList.add('shown'); io.unobserve(e.target); }
+      });
+    }, { threshold: 0.1 });
+    document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+    // ─── FAQ ───
+    function toggleFaq(qEl) {
+      const item   = qEl.parentElement;
+      const body   = item.querySelector('.faq-body');
+      const icon   = qEl.querySelector('.faq-icon');
+      const text   = qEl.querySelector('.faq-q-text');
+      const isOpen = body.classList.contains('open');
+
+      document.querySelectorAll('.faq-body').forEach(b => b.classList.remove('open'));
+      document.querySelectorAll('.faq-icon').forEach(i => i.classList.remove('open'));
+      document.querySelectorAll('.faq-q-text').forEach(t => t.classList.remove('open'));
+
+      if (!isOpen) {
+        body.classList.add('open');
+        icon.classList.add('open');
+        text.classList.add('open');
+      }
+    }
+  </script>
+</body>
+</html>
