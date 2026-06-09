@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GXLD — Full Gallery</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --gold: #C9A84C;
+      --gold-dim: rgba(201,168,76,0.15);
+      --gold-glow: rgba(201,168,76,0.06);
+      --bg: #080808; --bg2: #0d0d0d; --bg3: #111;
+      --border: rgba(255,255,255,0.06);
+      --border-gold: rgba(201,168,76,0.25);
+      --text: #fff; --text-2: #999; --text-3: #555; --text-4: #333;
+      --font-display: 'Space Grotesk', sans-serif;
+      --font-body: 'Inter', sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: var(--font-body); -webkit-font-smoothing: antialiased;
+      cursor: none;
+    }
+    a { text-decoration: none; color: inherit; }
+
+    /* cursor */
+    .cursor-dot { width:6px;height:6px;background:var(--gold);border-radius:50%;position:fixed;top:0;left:0;pointer-events:none;z-index:9999;transform:translate(-50%,-50%); }
+    .cursor-ring { width:32px;height:32px;border:1px solid rgba(201,168,76,0.4);border-radius:50%;position:fixed;top:0;left:0;pointer-events:none;z-index:9998;transform:translate(-50%,-50%);transition:left .1s,top .1s,width .3s,height .3s,border-color .3s,background .3s; }
+    .cursor-ring.hovered { width:50px;height:50px;border-color:var(--gold);background:rgba(201,168,76,0.05); }
+
+    /* noise */
+    body::after { content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");pointer-events:none;z-index:8999;opacity:.5; }
+
+    nav {
+      position: fixed; top:0;left:0;right:0;z-index:1000;
+      padding:18px 52px;
+      display:flex;align-items:center;justify-content:space-between;
+      background:rgba(8,8,8,0.85);backdrop-filter:blur(24px);
+      border-bottom:1px solid var(--border);
+    }
+    .nav-logo { font-family:var(--font-display);font-size:18px;font-weight:700;letter-spacing:4px; }
+    .nav-logo span { color:var(--gold); }
+    .nav-back {
+      display:inline-flex;align-items:center;gap:8px;
+      font-size:12px;color:var(--text-3);
+      border:1px solid var(--border);padding:8px 18px;border-radius:6px;
+      cursor:none;transition:border-color .2s,color .2s;
+    }
+    .nav-back:hover { border-color:var(--border-gold);color:var(--gold); }
+
+    .page-header {
+      padding: 140px 52px 60px;
+    }
+    .page-header-inner { max-width:1200px;margin:0 auto; }
+    .eyebrow {
+      display:inline-flex;align-items:center;gap:8px;
+      font-size:10px;letter-spacing:3px;color:var(--gold);
+      text-transform:uppercase;margin-bottom:14px;
+    }
+    .eyebrow::before { content:'';width:16px;height:1px;background:var(--gold); }
+    h1 {
+      font-family:var(--font-display);
+      font-size:clamp(36px,5vw,64px);font-weight:700;letter-spacing:-1.5px;
+      margin-bottom:16px;
+    }
+    .page-sub { font-size:14px;color:var(--text-2);line-height:1.8;max-width:480px; }
+
+    main { padding:0 52px 100px; }
+    .gallery-inner { max-width:1200px;margin:0 auto; }
+    .gallery-grid {
+      display:grid;grid-template-columns:repeat(3,1fr);gap:16px;
+    }
+    .g-card {
+      border-radius:12px;overflow:hidden;background:var(--bg3);
+      border:1px solid var(--border);position:relative;cursor:none;
+      transition:transform .45s cubic-bezier(.16,1,.3,1),box-shadow .4s,border-color .3s;
+    }
+    .g-card:hover {
+      transform:translateY(-8px);border-color:var(--border-gold);
+      box-shadow:0 24px 64px rgba(0,0,0,.5),0 0 0 1px var(--border-gold);
+    }
+    .g-img { width:100%;height:220px;overflow:hidden;position:relative; }
+    .g-img img {
+      width:100%;height:100%;object-fit:cover;
+      transition:transform .65s cubic-bezier(.16,1,.3,1),filter .4s;
+      filter:brightness(.8) saturate(.85);
+    }
+    .g-card:hover .g-img img { transform:scale(1.07);filter:brightness(1.05) saturate(1.1); }
+    .g-overlay { position:absolute;inset:0;background:linear-gradient(180deg,transparent 45%,rgba(8,8,8,.85) 100%);pointer-events:none; }
+    .g-badge {
+      position:absolute;top:12px;right:12px;
+      font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
+      background:var(--gold);color:#080808;padding:4px 10px;border-radius:4px;
+      opacity:0;transform:translateY(-4px);transition:opacity .3s,transform .3s;
+    }
+    .g-card:hover .g-badge { opacity:1;transform:translateY(0); }
+    .g-body { padding:16px 18px 20px; }
+    .g-title { font-size:14px;font-weight:600;color:var(--text);margin-bottom:5px; }
+    .g-meta { font-size:11px;color:var(--text-3);letter-spacing:.5px; }
+
+    /* reveal */
+    .reveal { opacity:0;transform:translateY(24px);transition:opacity .7s cubic-bezier(.16,1,.3,1),transform .7s cubic-bezier(.16,1,.3,1); }
+    .reveal.shown { opacity:1;transform:translateY(0); }
+    .d1{transition-delay:.05s}.d2{transition-delay:.1s}.d3{transition-delay:.15s}
+    .d4{transition-delay:.2s}.d5{transition-delay:.25s}.d6{transition-delay:.3s}
+
+    footer { padding:36px 52px;border-top:1px solid var(--border); }
+    .footer-inner { max-width:1200px;margin:0 auto;display:flex;justify-content:space-between;align-items:center; }
+    .footer-logo { font-family:var(--font-display);font-size:15px;font-weight:700;letter-spacing:4px; }
+    .footer-logo span { color:var(--gold); }
+    .footer-copy { font-size:11px;color:var(--text-4); }
+    .footer-dc {
+      display:inline-flex;align-items:center;gap:8px;
+      font-size:12px;color:var(--text-3);
+      border:1px solid var(--border);padding:8px 16px;border-radius:6px;
+      cursor:none;transition:border-color .2s,color .2s,background .2s;
+    }
+    .footer-dc:hover { border-color:var(--border-gold);color:var(--gold);background:var(--gold-glow); }
+
+    ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:#252525;border-radius:2px}::-webkit-scrollbar-thumb:hover{background:var(--gold)}
+  </style>
+</head>
+<body>
+
+  <div class="cursor-dot" id="cDot"></div>
+  <div class="cursor-ring" id="cRing"></div>
+
+  <nav>
+    <div class="nav-logo"><span>GX</span>LD</div>
+    <a href="index.html" class="nav-back">← Back to Portfolio</a>
+  </nav>
+
+  <div class="page-header">
+    <div class="page-header-inner">
+      <div class="eyebrow">Portfolio</div>
+      <h1>All Work</h1>
+      <p class="page-sub">Every UI system and frame — from futuristic anime to ancient fantasy, all built in Figma and imported into Roblox.</p>
+    </div>
+  </div>
+
+  <main>
+    <div class="gallery-inner">
+      <div class="gallery-grid">
+
+        <div class="g-card reveal d1">
+          <div class="g-img">
+            <img src="Images/UI/Futuristic Anime.png" alt="Futuristic Anime UI" loading="lazy" />
+            <div class="g-overlay"></div>
+          </div>
+          <div class="g-badge">UI Design</div>
+          <div class="g-body">
+            <div class="g-title">Futuristic Anime UI</div>
+            <div class="g-meta">Game UI · Figma</div>
+          </div>
+        </div>
+
+        <div class="g-card reveal d2">
+          <div class="g-img">
+            <img src="Images/UI/Futuristic Anime 2.png" alt="Futuristic Anime UI 2" loading="lazy" />
+            <div class="g-overlay"></div>
+          </div>
+          <div class="g-badge">UI Design</div>
+          <div class="g-body">
+            <div class="g-title">Futuristic Anime UI II</div>
+            <div class="g-meta">Game UI · Figma</div>
+          </div>
+        </div>
+
+        <div class="g-card reveal d3">
+          <div class="g-img">
+            <img src="Images/UI/Book UI.webp" alt="Ancient Book UI" loading="lazy" />
+            <div class="g-overlay"></div>
+          </div>
+          <div class="g-badge">UI Design</div>
+          <div class="g-body">
+            <div class="g-title">Ancient Book UI</div>
+            <div class="g-meta">Game UI · Figma</div>
+          </div>
+        </div>
+
+        <div class="g-card reveal d4">
+          <div class="g-img">
+            <img src="Images/UI/Fost UI (1).webp" alt="Anime Frost UI" loading="lazy" />
+            <div class="g-overlay"></div>
+          </div>
+          <div class="g-badge">UI + Import</div>
+          <div class="g-body">
+            <div class="g-title">Anime Frost UI</div>
+            <div class="g-meta">Game UI · Figma + Import</div>
+          </div>
+        </div>
+
+        <div class="g-card reveal d5">
+          <div class="g-img">
+            <img src="Images/UI/Neon Si-Fi UI.png" alt="Neon Sci-Fi UI" loading="lazy" />
+            <div class="g-overlay"></div>
+          </div>
+          <div class="g-badge">UI + Import</div>
+          <div class="g-body">
+            <div class="g-title">Neon Sci-Fi UI</div>
+            <div class="g-meta">Game UI · Figma + Import</div>
+          </div>
+        </div>
+
+        <div class="g-card reveal d6">
+          <div class="g-img">
+            <img src="Images/UI/Neon Anime UI.png" alt="Neon Anime UI" loading="lazy" />
+            <div class="g-overlay"></div>
+          </div>
+          <div class="g-badge">UI Design</div>
+          <div class="g-body">
+            <div class="g-title">Neon Anime UI</div>
+            <div class="g-meta">Game UI · Figma</div>
+          </div>
+        </div>
+
+        <div class="g-card reveal d1">
+          <div class="g-img">
+            <img src="Images/UI/Si-Fi UI.png" alt="Sci-Fi UI" loading="lazy" />
+            <div class="g-overlay"></div>
+          </div>
+          <div class="g-badge">UI Design</div>
+          <div class="g-body">
+            <div class="g-title">Sci-Fi UI</div>
+            <div class="g-meta">Game UI · Figma</div>
+          </div>
+        </div>
+
+        <div class="g-card reveal d2">
+          <div class="g-img">
+            <img src="Images/UI/Western UI.png" alt="Western UI" loading="lazy" />
+            <div class="g-overlay"></div>
+          </div>
+          <div class="g-badge">UI Design</div>
+          <div class="g-body">
+            <div class="g-title">Western UI</div>
+            <div class="g-meta">Game UI · Figma</div>
+          </div>
+        </div>
+
+        <div class="g-card reveal d3">
+          <div class="g-img">
+            <img src="Images/UI/6BsZcdMtTXkRonvZQ7CSKewFbz8.avif" alt="UI Project" loading="lazy" />
+            <div class="g-overlay"></div>
+          </div>
+          <div class="g-badge">UI + Import</div>
+          <div class="g-body">
+            <div class="g-title">Custom UI</div>
+            <div class="g-meta">Game UI · Figma + Import</div>
+          </div>
+        </div>
+
+        <div class="g-card reveal d4">
+          <div class="g-img">
+            <img src="Images/UI/shnWMJCLCloYO0D6wRiZ4x45A.webp" alt="UI Project" loading="lazy" />
+            <div class="g-overlay"></div>
+          </div>
+          <div class="g-badge">UI Design</div>
+          <div class="g-body">
+            <div class="g-title">Custom UI II</div>
+            <div class="g-meta">Game UI · Figma</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-logo"><span>GX</span>LD</div>
+      <div class="footer-copy">© 2025 GXLD · Roblox UI Designer</div>
+      <a href="https://discord.com/users/1188805446455271426" target="_blank" class="footer-dc">💬 gxld_ofc</a>
+    </div>
+  </footer>
+
+  <script>
+    const cDot = document.getElementById('cDot');
+    const cRing = document.getElementById('cRing');
+    document.addEventListener('mousemove', e => {
+      cDot.style.left = e.clientX + 'px'; cDot.style.top = e.clientY + 'px';
+      cRing.style.left = e.clientX + 'px'; cRing.style.top = e.clientY + 'px';
+    });
+    document.querySelectorAll('a,.g-card').forEach(el => {
+      el.addEventListener('mouseenter', () => cRing.classList.add('hovered'));
+      el.addEventListener('mouseleave', () => cRing.classList.remove('hovered'));
+    });
+    const io = new IntersectionObserver(entries => {
+      entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('shown'); io.unobserve(e.target); } });
+    }, { threshold: 0.08 });
+    document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+  </script>
+</body>
+</html>
