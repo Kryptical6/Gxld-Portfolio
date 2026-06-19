@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   ArrowLeft,
@@ -8,10 +8,15 @@ import {
   ChevronDown,
   Clock3,
   Copy,
+  DollarSign,
+  Download,
   Gem,
+  Hammer,
   Inbox,
+  KeyRound,
   Layers3,
   LayoutGrid,
+  Lock,
   LogIn,
   Maximize2,
   MessageCircle,
@@ -20,11 +25,14 @@ import {
   Search,
   Send,
   Shield,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
   Ticket,
   Trash2,
+  Unlock,
   UserRound,
+  Wallet,
   Wand2,
   X,
   Zap,
@@ -34,7 +42,16 @@ import "./styles.css";
 const DISCORD_USER_ID = "<@1188805446455271426>";
 const ADMIN_ACCESS_CODE = "GXLD-ADMIN-2026";
 const TICKETS_KEY = "gxld-ticket-store";
-const TICKET_STATUSES = ["Open", "In Review", "Quoted", "In Progress", "Completed"];
+// Ordered commission stages. Payment is collected on delivery: files stay locked
+// until GXLD confirms payment has landed, then they release to the client.
+const TICKET_STATUSES = ["Open", "In Review", "Quoted", "In Progress", "Ready for Delivery", "Delivered"];
+
+// Payment details shown to the client on the delivery step. Replace the placeholders
+// with your real PayPal link and Roblox group/community URL.
+const PAYMENT = {
+  paypal: "https://paypal.me/pay329876",
+  robux: "https://www.roblox.com/game-pass/1683061964/Commisions",
+};
 
 // To get an email when a ticket is opened, paste a Formspree endpoint here
 // (create a free form at https://formspree.io and use its "https://formspree.io/f/xxxx" URL).
@@ -191,6 +208,94 @@ const makeTicketCode = () => {
   return `GX-${chunk}`;
 };
 
+const copyText = async (value) => {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+    const field = document.createElement("textarea");
+    field.value = value;
+    field.style.position = "fixed";
+    field.style.opacity = "0";
+    document.body.appendChild(field);
+    field.select();
+    document.execCommand("copy");
+    document.body.removeChild(field);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+function useScrollReveal(deps = []) {
+  useEffect(() => {
+    const els = Array.from(document.querySelectorAll(".reveal:not(.in)"));
+    if (prefersReducedMotion() || !("IntersectionObserver" in window)) {
+      els.forEach((el) => el.classList.add("in"));
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("in");
+            io.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.12, rootMargin: "0px 0px -8% 0px" },
+    );
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+}
+
+function CountUp({ end, suffix = "", duration = 1400 }) {
+  const [value, setValue] = useState(0);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (prefersReducedMotion() || !node || !("IntersectionObserver" in window)) {
+      setValue(end);
+      return;
+    }
+    let raf = 0;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          const start = performance.now();
+          const tick = (now) => {
+            const progress = Math.min(1, (now - start) / duration);
+            setValue(Math.round(end * (1 - Math.pow(1 - progress, 3))));
+            if (progress < 1) raf = requestAnimationFrame(tick);
+          };
+          raf = requestAnimationFrame(tick);
+          io.disconnect();
+        }
+      },
+      { threshold: 0.6 },
+    );
+    io.observe(node);
+    return () => {
+      io.disconnect();
+      cancelAnimationFrame(raf);
+    };
+  }, [end, duration]);
+
+  return (
+    <strong ref={ref}>
+      {value}
+      {suffix}
+    </strong>
+  );
+}
+
 function App() {
   const [activePreview, setActivePreview] = useState(null);
   const [showAllWork, setShowAllWork] = useState(false);
@@ -201,6 +306,8 @@ function App() {
     setTickets(nextTickets);
     saveTickets(nextTickets);
   };
+
+  useScrollReveal([showAllWork]);
 
   return (
     <main className="site-shell">
@@ -219,6 +326,7 @@ function App() {
       <Pricing onContact={() => setContactMode("choice")} />
       <Process />
       <Faq onContact={() => setContactMode("choice")} />
+      <Footer onContact={() => setContactMode("choice")} />
       {activePreview && <PreviewModal item={activePreview} onClose={() => setActivePreview(null)} />}
       {contactMode && (
         <ContactModal
@@ -316,7 +424,7 @@ function Hero({ onContact, onPreview }) {
           </div>
         </article>
         <div className="stat-card">
-          <strong>50+</strong>
+          <CountUp end={50} suffix="+" />
           <span>frames delivered</span>
         </div>
       </div>
@@ -333,7 +441,7 @@ function Showcase() {
         ["Polish", "Glow, depth, motion-ready details, and style consistency.", Wand2],
         ["Secure", "Clear deliverables, source files, and daily updates.", ShieldCheck],
       ].map(([title, text, Icon]) => (
-        <article className="mini-card" key={title}>
+        <article className="mini-card reveal" key={title}>
           <Icon size={18} />
           <h2>{title}</h2>
           <p>{text}</p>
@@ -382,8 +490,23 @@ function Gallery({ activeAll, onShowAll, onBack, onPreview }) {
 }
 
 function WorkCard({ item, onPreview }) {
+  const onMove = (event) => {
+    if (prefersReducedMotion()) return;
+    const card = event.currentTarget;
+    const rect = card.getBoundingClientRect();
+    const px = (event.clientX - rect.left) / rect.width - 0.5;
+    const py = (event.clientY - rect.top) / rect.height - 0.5;
+    card.style.setProperty("--ry", `${px * 6}deg`);
+    card.style.setProperty("--rx", `${py * -6}deg`);
+  };
+
+  const onLeave = (event) => {
+    event.currentTarget.style.removeProperty("--rx");
+    event.currentTarget.style.removeProperty("--ry");
+  };
+
   return (
-    <article className={`work-card tone-${item.tone}`}>
+    <article className={`work-card tone-${item.tone} reveal`} onMouseMove={onMove} onMouseLeave={onLeave}>
       <button className="work-button" type="button" onClick={onPreview} aria-label={`Open ${item.title} preview`}>
         <img src={item.image} alt={`${item.title} Roblox UI display`} decoding="async" />
         <div className="work-sheen" />
@@ -410,7 +533,7 @@ function Pricing({ onContact }) {
       />
       <div className="pricing-grid">
         {packages.map((item) => (
-          <article className={`price-card ${item.featured ? "featured" : ""}`} key={item.name}>
+          <article className={`price-card reveal ${item.featured ? "featured" : ""}`} key={item.name}>
             {item.featured && <span className="badge">Best Value</span>}
             <h3>{item.name}</h3>
             <div className="price">
@@ -434,6 +557,13 @@ function Pricing({ onContact }) {
           </article>
         ))}
       </div>
+      <div className="trust-strip reveal">
+        <ShieldCheck size={20} />
+        <p>
+          <strong>Pay on delivery.</strong> You only pay once the work is finished and you have seen it - then your files
+          unlock instantly through your ticket.
+        </p>
+      </div>
     </section>
   );
 }
@@ -454,7 +584,7 @@ function Process() {
       />
       <div className="process-grid">
         {steps.map(([num, title, text]) => (
-          <article className="step" data-step={num} key={num}>
+          <article className="step reveal" data-step={num} key={num}>
             <span>{num}</span>
             <h3>{title}</h3>
             <p>{text}</p>
@@ -475,7 +605,7 @@ function Faq({ onContact }) {
             title="FAQ"
             text="Fast answers for the stuff people usually ask before commissioning."
           />
-          <div className="contact-panel" id="contact">
+          <div className="contact-panel reveal" id="contact">
             <Gem size={22} />
             <h3>Ready to commission?</h3>
             <p>Choose a website ticket for a structured request, or continue through Discord.</p>
@@ -487,7 +617,7 @@ function Faq({ onContact }) {
         </div>
         <div className="faq-list">
           {faqs.map(([question, answer], index) => (
-            <details key={question} open={index === 0}>
+            <details className="reveal" key={question} open={index === 0}>
               <summary>
                 {question}
                 <ChevronDown size={17} />
@@ -498,6 +628,44 @@ function Faq({ onContact }) {
         </div>
       </div>
     </section>
+  );
+}
+
+function Footer({ onContact }) {
+  return (
+    <footer className="site-footer reveal">
+      <div className="footer-main">
+        <div className="footer-brand">
+          <a className="brand" href="#top" aria-label="GXLD home">
+            <span className="brand-mark">GX</span>
+            <span>GXLD</span>
+          </a>
+          <p>Bold Roblox UI design and clean Studio imports for shops, inventories, HUDs, and full game systems.</p>
+          <button className="btn primary" type="button" onClick={onContact}>
+            <MessageCircle size={16} />
+            Let's Talk
+          </button>
+        </div>
+        <nav className="footer-links" aria-label="Footer navigation">
+          <strong>Explore</strong>
+          <a href="#work">Work</a>
+          <a href="#pricing">Pricing</a>
+          <a href="#process">Process</a>
+          <a href="#faq">FAQ</a>
+        </nav>
+        <div className="footer-tools">
+          <strong>Built with</strong>
+          <span>Figma</span>
+          <span>Photoshop</span>
+          <span>Roblox Studio</span>
+          <span>Discord</span>
+        </div>
+      </div>
+      <div className="footer-bottom">
+        <span>© {new Date().getFullYear()} GXLD - Roblox UI Design</span>
+        <span>Available for commissions</span>
+      </div>
+    </footer>
   );
 }
 
@@ -572,23 +740,9 @@ function DiscordInstructions({ setMode }) {
   const [copied, setCopied] = useState(false);
 
   const copyId = async () => {
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(DISCORD_USER_ID);
-      } else {
-        const field = document.createElement("textarea");
-        field.value = DISCORD_USER_ID;
-        field.style.position = "fixed";
-        field.style.opacity = "0";
-        document.body.appendChild(field);
-        field.select();
-        document.execCommand("copy");
-        document.body.removeChild(field);
-      }
+    if (await copyText(DISCORD_USER_ID)) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setCopied(false);
     }
   };
 
@@ -618,12 +772,31 @@ function DiscordInstructions({ setMode }) {
 function TicketDesk({ tickets, updateTickets, setMode }) {
   const [view, setView] = useState("create");
   const [activeTicket, setActiveTicket] = useState(null);
+  const [createdTicket, setCreatedTicket] = useState(null);
   const [lookupCode, setLookupCode] = useState("");
+  const [lookupError, setLookupError] = useState(false);
 
   const findTicket = () => {
     const found = tickets.find((ticket) => ticket.code.toLowerCase() === lookupCode.trim().toLowerCase());
-    if (found) setActiveTicket(found);
+    if (found) {
+      setActiveTicket(found);
+      setLookupError(false);
+    } else {
+      setLookupError(true);
+    }
   };
+
+  if (createdTicket) {
+    return (
+      <TicketCreated
+        ticket={createdTicket}
+        onView={() => {
+          setActiveTicket(createdTicket);
+          setCreatedTicket(null);
+        }}
+      />
+    );
+  }
 
   if (activeTicket) {
     return <TicketView ticket={activeTicket} tickets={tickets} updateTickets={updateTickets} onBack={() => setActiveTicket(null)} />;
@@ -645,15 +818,24 @@ function TicketDesk({ tickets, updateTickets, setMode }) {
         <TicketForm
           onCreated={(ticket) => {
             updateTickets([ticket, ...tickets]);
-            setActiveTicket(ticket);
+            setCreatedTicket(ticket);
           }}
         />
       ) : (
         <div className="lookup-panel">
           <label>
             Ticket code
-            <input value={lookupCode} onChange={(event) => setLookupCode(event.target.value)} placeholder="GX-ABCDE" />
+            <input
+              value={lookupCode}
+              onChange={(event) => {
+                setLookupCode(event.target.value);
+                setLookupError(false);
+              }}
+              onKeyDown={(event) => event.key === "Enter" && findTicket()}
+              placeholder="GX-ABCDE"
+            />
           </label>
+          {lookupError && <p className="form-error">No ticket with that code on this device.</p>}
           <button className="btn primary" type="button" onClick={findTicket}>
             <Search size={16} />
             Find Ticket
@@ -664,6 +846,49 @@ function TicketDesk({ tickets, updateTickets, setMode }) {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+function TicketCreated({ ticket, onView }) {
+  const [copied, setCopied] = useState(false);
+
+  const copyCode = async () => {
+    if (await copyText(ticket.code)) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  return (
+    <div className="ticket-created">
+      <div className="created-icon">
+        <CheckCircle2 size={30} />
+      </div>
+      <h3>Ticket created</h3>
+      <p>
+        Save your code below. It is the only way to return to this ticket and receive your files - GXLD cannot recover it
+        for you.
+      </p>
+      <div className="code-card">
+        <span>
+          <KeyRound size={14} />
+          Your ticket code
+        </span>
+        <strong>{ticket.code}</strong>
+        <button className="btn primary" type="button" onClick={copyCode}>
+          <Copy size={16} />
+          {copied ? "Copied" : "Copy code"}
+        </button>
+      </div>
+      <p className="safety-note">
+        <ShieldAlert size={15} />
+        Keep this private. Anyone with your code can open this ticket on this device.
+      </p>
+      <button className="btn dark" type="button" onClick={onView}>
+        Open my ticket
+        <ArrowRight size={16} />
+      </button>
     </div>
   );
 }
@@ -769,6 +994,9 @@ function TicketView({ ticket, tickets, updateTickets, onBack }) {
   };
 
   const currentTicket = tickets.find((item) => item.id === ticket.id) || ticket;
+  const isDelivered = currentTicket.status === "Delivered";
+  const isReady = currentTicket.status === "Ready for Delivery";
+  const delivery = currentTicket.delivery;
 
   return (
     <div className="ticket-view">
@@ -782,15 +1010,45 @@ function TicketView({ ticket, tickets, updateTickets, onBack }) {
           <p>{currentTicket.status} - Updated {new Date(currentTicket.updatedAt).toLocaleDateString()}</p>
         </div>
       </div>
+      <TicketProgress status={currentTicket.status} />
       <div className="status-row">
         <StatusPill status={currentTicket.status} />
         <span>{currentTicket.name}</span>
         <span>{currentTicket.discord}</span>
+        {currentTicket.quote && <span className="quote-chip">Quote: {currentTicket.quote}</span>}
       </div>
       <div className="ticket-body">
         <strong>Project Brief</strong>
         <p>{currentTicket.brief}</p>
       </div>
+
+      <div className={`delivery-card ${isDelivered ? "unlocked" : isReady ? "ready" : "locked"}`}>
+        <div className="delivery-head">
+          {isDelivered ? <Unlock size={18} /> : <Lock size={18} />}
+          <strong>{isDelivered ? "Files unlocked" : isReady ? "Payment due" : "Delivery"}</strong>
+        </div>
+        {isDelivered ? (
+          <>
+            {delivery?.link ? (
+              <a className="btn primary" href={delivery.link} target="_blank" rel="noopener noreferrer">
+                <Download size={16} />
+                Download your files
+              </a>
+            ) : (
+              <p>Payment confirmed. Your files have been released - check the replies below for the link.</p>
+            )}
+            {delivery?.note && <p className="delivery-note">{delivery.note}</p>}
+          </>
+        ) : isReady ? (
+          <>
+            <p>Your project is finished. Complete payment and your files unlock here automatically.</p>
+            <PaymentInstructions quote={currentTicket.quote} />
+          </>
+        ) : (
+          <p>Your files appear here once the project is finished and your payment is confirmed.</p>
+        )}
+      </div>
+
       <div className="reply-list">
         <Reply from="GXLD" body={currentTicket.adminNote} at={currentTicket.adminNoteAt || currentTicket.createdAt} />
         {currentTicket.replies.map((reply, index) => (
@@ -798,12 +1056,18 @@ function TicketView({ ticket, tickets, updateTickets, onBack }) {
         ))}
       </div>
       <div className="reply-box">
-        <textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Add a message or extra reference notes." />
+        <textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Add a message, payment proof, or extra reference notes." />
         <button className="btn primary" type="button" onClick={addReply}>
           <Send size={16} />
           Reply
         </button>
       </div>
+
+      <p className="safety-note">
+        <ShieldAlert size={15} />
+        Keep your ticket code private. GXLD will never DM you first asking for payment, and only ever uses the payment
+        details shown above.
+      </p>
     </div>
   );
 }
@@ -815,7 +1079,6 @@ function AdminDesk({ tickets, updateTickets, setMode }) {
   const [selectedId, setSelectedId] = useState(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [reply, setReply] = useState("");
 
   const counts = useMemo(() => {
     const base = { All: tickets.length };
@@ -878,27 +1141,6 @@ function AdminDesk({ tickets, updateTickets, setMode }) {
     );
   }
 
-  const updateSelected = (changes) => {
-    const nextTickets = tickets.map((ticket) =>
-      ticket.id === selected.id ? { ...ticket, ...changes, updatedAt: new Date().toISOString() } : ticket,
-    );
-    updateTickets(nextTickets);
-  };
-
-  const sendReply = () => {
-    if (!selected || !reply.trim()) return;
-    const now = new Date().toISOString();
-    updateSelected({ replies: [...selected.replies, { from: "GXLD", body: reply.trim(), at: now }] });
-    setReply("");
-  };
-
-  const deleteSelected = () => {
-    if (!selected) return;
-    if (!window.confirm(`Delete ticket ${selected.code} from ${selected.name}? This cannot be undone.`)) return;
-    updateTickets(tickets.filter((ticket) => ticket.id !== selected.id));
-    setSelectedId(null);
-  };
-
   if (tickets.length === 0) {
     return (
       <div className="empty-state">
@@ -951,58 +1193,149 @@ function AdminDesk({ tickets, updateTickets, setMode }) {
             </button>
           ))}
         </div>
-        {selected && (
-          <div className="admin-detail">
-            <div className="admin-detail-top">
-              <div className="ticket-summary">
-                <UserRound size={20} />
-                <div>
-                  <span>{selected.code}</span>
-                  <h3>{selected.name}</h3>
-                  <p>
-                    {selected.discord} - {selected.packageType}
-                  </p>
-                </div>
-              </div>
-              <button className="icon-btn danger" type="button" onClick={deleteSelected} aria-label="Delete ticket">
-                <Trash2 size={17} />
-              </button>
-            </div>
-            <div className="admin-meta">
-              {selected.email && <span>{selected.email}</span>}
-              {selected.budget && <span>Budget: {selected.budget}</span>}
-              {selected.deadline && <span>Deadline: {selected.deadline}</span>}
-              <span>Opened {new Date(selected.createdAt).toLocaleDateString()}</span>
-            </div>
-            <div className="status-edit">
-              <label>
-                Status
-                <select value={selected.status} onChange={(event) => updateSelected({ status: event.target.value })}>
-                  {TICKET_STATUSES.map((status) => (
-                    <option key={status}>{status}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <div className="ticket-body">
-              <strong>Brief</strong>
-              <p>{selected.brief}</p>
-            </div>
-            <div className="reply-list">
-              <Reply from="GXLD" body={selected.adminNote} at={selected.adminNoteAt || selected.createdAt} />
-              {selected.replies.map((entry, index) => (
-                <Reply key={`${entry.at}-${index}`} {...entry} />
-              ))}
-            </div>
-            <div className="reply-box">
-              <textarea value={reply} onChange={(event) => setReply(event.target.value)} placeholder="Reply to the client as GXLD." />
-              <button className="btn primary" type="button" onClick={sendReply}>
-                <Send size={16} />
-                Send Reply
-              </button>
-            </div>
+        {selected && <AdminDetail key={selected.id} ticket={selected} tickets={tickets} updateTickets={updateTickets} />}
+      </div>
+    </div>
+  );
+}
+
+function AdminDetail({ ticket, tickets, updateTickets }) {
+  const [reply, setReply] = useState("");
+  const [quote, setQuote] = useState(ticket.quote || "");
+  const [link, setLink] = useState(ticket.delivery?.link || "");
+  const [deliveryNote, setDeliveryNote] = useState(ticket.delivery?.note || "");
+
+  const patch = (changes) => {
+    updateTickets(
+      tickets.map((item) => (item.id === ticket.id ? { ...item, ...changes, updatedAt: new Date().toISOString() } : item)),
+    );
+  };
+
+  const sendReply = () => {
+    if (!reply.trim()) return;
+    patch({ replies: [...ticket.replies, { from: "GXLD", body: reply.trim(), at: new Date().toISOString() }] });
+    setReply("");
+  };
+
+  const saveQuote = () => {
+    const earlyStage = ticket.status === "Open" || ticket.status === "In Review";
+    patch({ quote: quote.trim(), ...(earlyStage ? { status: "Quoted" } : {}) });
+  };
+
+  const saveDelivery = () => patch({ delivery: { link: link.trim(), note: deliveryNote.trim() } });
+
+  const releaseFiles = () => {
+    if (!link.trim()) {
+      window.alert("Add a delivery link before releasing files.");
+      return;
+    }
+    if (!window.confirm("Confirm payment received? This marks the ticket Delivered and unlocks the files for the client.")) {
+      return;
+    }
+    patch({
+      status: "Delivered",
+      delivery: { link: link.trim(), note: deliveryNote.trim() },
+      releasedAt: new Date().toISOString(),
+    });
+  };
+
+  const deleteTicket = () => {
+    if (!window.confirm(`Delete ticket ${ticket.code} from ${ticket.name}? This cannot be undone.`)) return;
+    updateTickets(tickets.filter((item) => item.id !== ticket.id));
+  };
+
+  return (
+    <div className="admin-detail">
+      <div className="admin-detail-top">
+        <div className="ticket-summary">
+          <UserRound size={20} />
+          <div>
+            <span>{ticket.code}</span>
+            <h3>{ticket.name}</h3>
+            <p>
+              {ticket.discord} - {ticket.packageType}
+            </p>
           </div>
+        </div>
+        <button className="icon-btn danger" type="button" onClick={deleteTicket} aria-label="Delete ticket">
+          <Trash2 size={17} />
+        </button>
+      </div>
+      <div className="admin-meta">
+        {ticket.email && <span>{ticket.email}</span>}
+        {ticket.budget && <span>Budget: {ticket.budget}</span>}
+        {ticket.deadline && <span>Deadline: {ticket.deadline}</span>}
+        <span>Opened {new Date(ticket.createdAt).toLocaleDateString()}</span>
+      </div>
+      <div className="status-edit">
+        <label>
+          Status
+          <select value={ticket.status} onChange={(event) => patch({ status: event.target.value })}>
+            {TICKET_STATUSES.map((status) => (
+              <option key={status}>{status}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="ticket-body">
+        <strong>Brief</strong>
+        <p>{ticket.brief}</p>
+      </div>
+
+      <div className="admin-panel-block">
+        <label>
+          Quote
+          <div className="inline-field">
+            <input value={quote} onChange={(event) => setQuote(event.target.value)} placeholder="$40 / R$15k" />
+            <button className="btn dark" type="button" onClick={saveQuote}>
+              Save
+            </button>
+          </div>
+        </label>
+      </div>
+
+      <div className="admin-panel-block">
+        <strong className="block-title">
+          <Lock size={14} /> Delivery files
+        </strong>
+        <p className="block-hint">
+          Upload files anywhere (Drive, Dropbox, MediaFire) and paste the share link. Files stay locked until you confirm
+          payment.
+        </p>
+        <label>
+          Delivery link
+          <input value={link} onChange={(event) => setLink(event.target.value)} placeholder="https://drive.google.com/..." />
+        </label>
+        <label>
+          Delivery note
+          <input value={deliveryNote} onChange={(event) => setDeliveryNote(event.target.value)} placeholder="What's included, install notes, etc." />
+        </label>
+        <div className="delivery-actions">
+          <button className="btn dark" type="button" onClick={saveDelivery}>
+            Save files
+          </button>
+          <button className="btn primary" type="button" onClick={releaseFiles}>
+            <Unlock size={16} />
+            Confirm payment &amp; release
+          </button>
+        </div>
+        {ticket.status === "Delivered" && ticket.releasedAt && (
+          <p className="block-hint released">Released {new Date(ticket.releasedAt).toLocaleString()}</p>
         )}
+      </div>
+
+      <div className="reply-list">
+        <Reply from="GXLD" body={ticket.adminNote} at={ticket.adminNoteAt || ticket.createdAt} />
+        {ticket.replies.map((entry, index) => (
+          <Reply key={`${entry.at}-${index}`} {...entry} />
+        ))}
+      </div>
+      <div className="reply-box">
+        <textarea value={reply} onChange={(event) => setReply(event.target.value)} placeholder="Reply to the client as GXLD." />
+        <button className="btn primary" type="button" onClick={sendReply}>
+          <Send size={16} />
+          Send Reply
+        </button>
       </div>
     </div>
   );
@@ -1020,13 +1353,66 @@ function Reply({ from, body, at }) {
   );
 }
 
+const STATUS_META = {
+  Open: { icon: Clock3, tone: "muted" },
+  "In Review": { icon: Search, tone: "cyan" },
+  Quoted: { icon: DollarSign, tone: "gold" },
+  "In Progress": { icon: Hammer, tone: "violet" },
+  "Ready for Delivery": { icon: Lock, tone: "amber" },
+  Delivered: { icon: Unlock, tone: "green" },
+};
+
 function StatusPill({ status }) {
-  const Icon = status === "Completed" ? CheckCircle2 : Clock3;
+  const meta = STATUS_META[status] || STATUS_META.Open;
+  const Icon = meta.icon;
   return (
-    <span className="status-pill">
+    <span className={`status-pill status-${meta.tone}`}>
       <Icon size={14} />
       {status}
     </span>
+  );
+}
+
+function TicketProgress({ status }) {
+  const currentIndex = Math.max(0, TICKET_STATUSES.indexOf(status));
+  return (
+    <ol className="ticket-progress" aria-label="Commission progress">
+      {TICKET_STATUSES.map((step, index) => (
+        <li key={step} className={index < currentIndex ? "done" : index === currentIndex ? "current" : ""}>
+          <span className="progress-dot" aria-hidden="true" />
+          <small>{step}</small>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function PaymentInstructions({ quote }) {
+  return (
+    <div className="payment-instructions">
+      {quote && (
+        <div className="payment-amount">
+          <span>Amount due</span>
+          <strong>{quote}</strong>
+        </div>
+      )}
+      <div className="payment-methods">
+        <a className="pay-method" href={PAYMENT.paypal} target="_blank" rel="noopener noreferrer">
+          <DollarSign size={16} />
+          <span>PayPal</span>
+          <small>Send as Goods &amp; Services</small>
+        </a>
+        <a className="pay-method" href={PAYMENT.robux} target="_blank" rel="noopener noreferrer">
+          <Wallet size={16} />
+          <span>Robux</span>
+          <small>Group payout / gamepass</small>
+        </a>
+      </div>
+      <p className="payment-note">
+        After paying, send proof in your ticket. GXLD confirms the payment manually, then your files unlock here
+        automatically. Never pay anyone else claiming to be GXLD.
+      </p>
+    </div>
   );
 }
 
@@ -1050,7 +1436,7 @@ function ModalShell({ children, onClose, size }) {
 
 function SectionHeader({ kicker, title, text }) {
   return (
-    <div className="section-header">
+    <div className="section-header reveal">
       <span>
         <Zap size={13} />
         {kicker}
