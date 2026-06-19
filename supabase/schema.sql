@@ -35,6 +35,37 @@ create table if not exists public.ticket_replies (
 
 create index if not exists ticket_replies_ticket_id_idx on public.ticket_replies(ticket_id);
 
+-- Added in a later iteration; safe to run on an existing database.
+alter table public.tickets add column if not exists internal_note text;
+alter table public.tickets add column if not exists archived boolean not null default false;
+alter table public.tickets add column if not exists status_log jsonb not null default '[]'::jsonb;
+
+-- Length guards (basic anti-abuse). Drop+recreate so re-running stays clean.
+alter table public.tickets drop constraint if exists tickets_brief_len;
+alter table public.tickets add constraint tickets_brief_len check (char_length(brief) <= 4000);
+alter table public.tickets drop constraint if exists tickets_name_len;
+alter table public.tickets add constraint tickets_name_len check (char_length(name) <= 120);
+alter table public.ticket_replies drop constraint if exists ticket_replies_body_len;
+alter table public.ticket_replies add constraint ticket_replies_body_len check (char_length(body) <= 4000);
+
+-- Maintain status_log automatically: seed it on insert, append on status change.
+create or replace function public.track_status() returns trigger
+language plpgsql as $$
+begin
+  if tg_op = 'INSERT' then
+    new.status_log := jsonb_build_array(jsonb_build_object('status', new.status, 'at', now()));
+  elsif new.status is distinct from old.status then
+    new.status_log := coalesce(old.status_log, '[]'::jsonb) || jsonb_build_object('status', new.status, 'at', now());
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists tickets_track_status on public.tickets;
+create trigger tickets_track_status
+  before insert or update on public.tickets
+  for each row execute function public.track_status();
+
 -- ---------------------------------------------------------------------------
 -- Row level security
 --   * Authenticated users (the owner) get full access. Keep public sign-ups
@@ -77,13 +108,33 @@ end;
 $$;
 
 -- Return a ticket (with its replies) as a single JSON object, by code.
+-- IMPORTANT: this is what anonymous visitors receive. It builds an explicit
+-- field list and intentionally OMITS internal_note so private notes never leak.
 create or replace function public.ticket_json(p_code text)
 returns jsonb
 language sql
 security definer
 set search_path = public
 as $$
-  select to_jsonb(t) || jsonb_build_object(
+  select jsonb_build_object(
+    'id', t.id,
+    'code', t.code,
+    'name', t.name,
+    'discord', t.discord,
+    'email', t.email,
+    'package_type', t.package_type,
+    'budget', t.budget,
+    'deadline', t.deadline,
+    'brief', t.brief,
+    'status', t.status,
+    'quote', t.quote,
+    'admin_note', t.admin_note,
+    'admin_note_at', t.admin_note_at,
+    'delivery', t.delivery,
+    'released_at', t.released_at,
+    'status_log', t.status_log,
+    'created_at', t.created_at,
+    'updated_at', t.updated_at,
     'replies',
     coalesce(
       (
@@ -163,3 +214,18 @@ $$;
 grant execute on function public.create_ticket(text, text, text, text, text, text, text) to anon, authenticated;
 grant execute on function public.get_ticket(text) to anon, authenticated;
 grant execute on function public.add_client_reply(text, text) to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Realtime: let the authenticated admin dashboard get live updates.
+-- ---------------------------------------------------------------------------
+do $$
+begin
+  alter publication supabase_realtime add table public.tickets;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.ticket_replies;
+exception when duplicate_object then null;
+end $$;

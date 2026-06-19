@@ -1546,8 +1546,20 @@ select option {
     grid-column: 1 / -1;
     order: 3;
     justify-content: flex-start;
+    gap: 18px;
     overflow-x: auto;
     padding-bottom: 2px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+
+  .nav-links::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-links a {
+    scroll-snap-align: start;
+    white-space: nowrap;
   }
 
   .nav-cta {
@@ -2134,5 +2146,236 @@ select option {
 
   .work-card {
     transform: none;
+  }
+}
+
+/* ---------- Toasts ---------- */
+.toast-stack {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 80;
+  display: grid;
+  gap: 8px;
+  max-width: min(360px, calc(100% - 36px));
+}
+
+.toast {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(16, 16, 16, 0.96);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(12px);
+  animation: toast-in 200ms ease;
+}
+
+.toast-success {
+  border-color: rgba(150, 230, 170, 0.4);
+}
+
+.toast-error {
+  border-color: rgba(255, 148, 191, 0.45);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---------- Error boundary ---------- */
+.app-error {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  max-width: 420px;
+  margin: 18vh auto;
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  text-align: center;
+}
+
+.app-error svg {
+  color: var(--gold-hot);
+}
+
+.app-error .btn {
+  width: fit-content;
+}
+
+/* ---------- Preview lightbox nav ---------- */
+.large-preview-frame {
+  position: relative;
+}
+
+.preview-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  transform: translateY(-50%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--text);
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.preview-nav:hover {
+  border-color: var(--line-bright);
+  background: rgba(201, 168, 76, 0.18);
+}
+
+.preview-nav.prev {
+  left: 12px;
+}
+
+.preview-nav.next {
+  right: 12px;
+}
+
+.preview-counter {
+  margin-top: 10px;
+  color: var(--dim);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* ---------- Admin controls ---------- */
+.admin-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.admin-controls .admin-search {
+  flex: 1 1 220px;
+}
+
+.admin-select {
+  width: auto;
+  min-height: 42px;
+  padding: 0 12px;
+}
+
+.btn.dark.active {
+  border-color: var(--line-bright);
+  background: rgba(201, 168, 76, 0.12);
+}
+
+.unread-pill {
+  gap: 8px;
+}
+
+.unread-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--gold-hot);
+  box-shadow: 0 0 8px rgba(243, 206, 104, 0.8);
+}
+
+.ticket-row.unread {
+  border-color: var(--line-bright);
+}
+
+.ticket-row.unread span {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.ticket-row.archived {
+  opacity: 0.6;
+}
+
+.row-archived {
+  margin-left: 6px;
+  color: var(--dim);
+  font-size: 9px;
+  font-style: normal;
+  text-transform: uppercase;
+}
+
+.detail-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.meta-archived {
+  color: var(--dim) !important;
+  border-color: var(--dim) !important;
+}
+
+/* ---------- Status history ---------- */
+.status-log {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.status-log li {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.status-log span {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.status-log small {
+  color: var(--dim);
+  font-size: 11px;
+}
+
+.admin-panel-block textarea {
+  min-height: 80px;
+}
+
+/* ---------- Skeleton loading ---------- */
+.skeleton-list {
+  display: grid;
+  gap: 8px;
+}
+
+.skeleton-row {
+  height: 58px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.04));
+  background-size: 200% 100%;
+  animation: shimmer 1.3s linear infinite;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
   }
 }

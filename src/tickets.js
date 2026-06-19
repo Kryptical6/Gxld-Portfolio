@@ -64,6 +64,9 @@ const fromRow = (row) => {
     adminNoteAt: row.admin_note_at || row.created_at,
     delivery: row.delivery || null,
     releasedAt: row.released_at || null,
+    internalNote: row.internal_note || "",
+    archived: row.archived || false,
+    statusLog: row.status_log || [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     replies: rawReplies
@@ -81,6 +84,8 @@ const toRow = (changes) => {
     adminNoteAt: "admin_note_at",
     delivery: "delivery",
     releasedAt: "released_at",
+    internalNote: "internal_note",
+    archived: "archived",
   };
   const out = {};
   Object.entries(changes).forEach(([key, value]) => {
@@ -146,6 +151,9 @@ export async function createTicket(form) {
     adminNoteAt: now,
     delivery: null,
     releasedAt: null,
+    internalNote: "",
+    archived: false,
+    statusLog: [{ status: "Open", at: now }],
     replies: [],
   };
   lsSaveAll([ticket, ...lsGetAll()]);
@@ -227,7 +235,14 @@ export async function updateTicket(id, changes) {
     if (error) throw error;
     return;
   }
-  lsUpdate(id, (ticket) => ({ ...ticket, ...changes, updatedAt: new Date().toISOString() }));
+  const now = new Date().toISOString();
+  lsUpdate(id, (ticket) => {
+    const statusChanged = changes.status && changes.status !== ticket.status;
+    const statusLog = statusChanged
+      ? [...(ticket.statusLog || []), { status: changes.status, at: now }]
+      : ticket.statusLog || [];
+    return { ...ticket, ...changes, statusLog, updatedAt: now };
+  });
 }
 
 export async function addAdminReply(id, body) {
@@ -244,6 +259,21 @@ export async function addAdminReply(id, body) {
     updatedAt: new Date().toISOString(),
     replies: [...ticket.replies, { from: "GXLD", body: text, at: new Date().toISOString() }],
   }));
+}
+
+// Live updates for the admin desk. Cloud mode uses Supabase realtime; fallback
+// mode polls localStorage periodically. Returns an unsubscribe function.
+export function subscribeTickets(onChange) {
+  if (isCloud) {
+    const channel = supabase
+      .channel("tickets-admin")
+      .on("postgres_changes", { event: "*", schema: "public", table: "tickets" }, () => onChange())
+      .on("postgres_changes", { event: "*", schema: "public", table: "ticket_replies" }, () => onChange())
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }
+  const interval = setInterval(onChange, 8000);
+  return () => clearInterval(interval);
 }
 
 export async function deleteTicket(id) {

@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
+  Archive,
+  ArchiveRestore,
   ArrowLeft,
   ArrowRight,
   BadgeCheck,
@@ -10,6 +12,7 @@ import {
   Copy,
   DollarSign,
   Download,
+  EyeOff,
   Gem,
   Hammer,
   Inbox,
@@ -40,6 +43,7 @@ import {
   Zap,
 } from "lucide-react";
 import "./styles.css";
+import { ToastProvider, useToast } from "./toast";
 import {
   addAdminReply,
   addClientReply,
@@ -51,6 +55,7 @@ import {
   getTicketByCode,
   isCloud,
   listTickets,
+  subscribeTickets,
   updateTicket,
 } from "./tickets";
 
@@ -64,6 +69,60 @@ const TICKET_STATUSES = ["Open", "In Review", "Quoted", "In Progress", "Ready fo
 const PAYMENT = {
   paypal: "https://paypal.me/pay329876",
   robux: "https://www.roblox.com/game-pass/1683061964/Commisions",
+};
+
+// Length caps mirrored by SQL check constraints (basic anti-abuse).
+const LIMITS = { name: 120, discord: 80, email: 160, budget: 60, deadline: 60, brief: 4000, reply: 4000 };
+
+const ADMIN_SEEN_KEY = "gxld-admin-last-seen";
+
+const playBeep = () => {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.3);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.32);
+  } catch {
+    // audio is a nicety; ignore failures
+  }
+};
+
+const notifyNewTickets = (fresh) => {
+  playBeep();
+  if (typeof Notification === "undefined") return;
+  const show = () =>
+    fresh.forEach((ticket) => new Notification("New GXLD ticket", { body: `${ticket.name} - ${ticket.packageType}` }));
+  if (Notification.permission === "granted") show();
+  else if (Notification.permission !== "denied") Notification.requestPermission().then((p) => p === "granted" && show());
+};
+
+const exportTicketsCsv = (tickets) => {
+  const headers = ["code", "name", "discord", "email", "package", "status", "quote", "budget", "deadline", "created", "updated", "brief"];
+  const esc = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+  const rows = tickets.map((t) =>
+    [t.code, t.name, t.discord, t.email, t.packageType, t.status, t.quote, t.budget, t.deadline, t.createdAt, t.updatedAt, t.brief]
+      .map(esc)
+      .join(","),
+  );
+  const csv = [headers.join(","), ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `gxld-tickets-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 };
 
 // To get an email when a ticket is opened, paste a Formspree endpoint here
@@ -293,7 +352,7 @@ function App() {
       <Process />
       <Faq onContact={() => setContactMode("choice")} />
       <Footer onContact={() => setContactMode("choice")} />
-      {activePreview && <PreviewModal item={activePreview} onClose={() => setActivePreview(null)} />}
+      {activePreview && <PreviewModal item={activePreview} onNavigate={setActivePreview} onClose={() => setActivePreview(null)} />}
       {contactMode && <ContactModal mode={contactMode} setMode={setContactMode} onClose={() => setContactMode(null)} />}
     </main>
   );
@@ -466,7 +525,7 @@ function WorkCard({ item, onPreview }) {
   return (
     <article className={`work-card tone-${item.tone} reveal`} onMouseMove={onMove} onMouseLeave={onLeave}>
       <button className="work-button" type="button" onClick={onPreview} aria-label={`Open ${item.title} preview`}>
-        <img src={item.image} alt={`${item.title} Roblox UI display`} decoding="async" />
+        <img src={item.image} alt={`${item.title} Roblox UI display`} decoding="async" loading="lazy" />
         <div className="work-sheen" />
         <div className="work-meta">
           <span>{item.type}</span>
@@ -627,7 +686,23 @@ function Footer({ onContact }) {
   );
 }
 
-function PreviewModal({ item, onClose }) {
+function PreviewModal({ item, onNavigate, onClose }) {
+  const index = work.findIndex((entry) => entry.title === item.title);
+  const go = (delta) => {
+    if (index < 0) return;
+    onNavigate(work[(index + delta + work.length) % work.length]);
+  };
+
+  useEffect(() => {
+    const onKey = (event) => {
+      if (event.key === "ArrowRight") go(1);
+      if (event.key === "ArrowLeft") go(-1);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index]);
+
   return (
     <ModalShell onClose={onClose} size="preview">
       <div className={`preview-modal tone-${item.tone}`}>
@@ -642,7 +717,16 @@ function PreviewModal({ item, onClose }) {
           </button>
         </div>
         <div className="large-preview-frame">
+          <button className="preview-nav prev" type="button" onClick={() => go(-1)} aria-label="Previous display">
+            <ArrowLeft size={20} />
+          </button>
           <img src={item.image} alt={`${item.title} enlarged Roblox UI preview`} />
+          <button className="preview-nav next" type="button" onClick={() => go(1)} aria-label="Next display">
+            <ArrowRight size={20} />
+          </button>
+        </div>
+        <div className="preview-counter">
+          {index + 1} / {work.length}
         </div>
       </div>
     </ModalShell>
@@ -696,11 +780,15 @@ function ContactChoice({ setMode }) {
 
 function DiscordInstructions({ setMode }) {
   const [copied, setCopied] = useState(false);
+  const toast = useToast();
 
   const copyId = async () => {
     if (await copyText(DISCORD_USER_ID)) {
       setCopied(true);
+      toast("Discord ID copied", "success");
       setTimeout(() => setCopied(false), 2000);
+    } else {
+      toast("Couldn't copy - copy it manually", "error");
     }
   };
 
@@ -811,11 +899,15 @@ function TicketDesk({ setMode }) {
 
 function TicketCreated({ ticket, onView }) {
   const [copied, setCopied] = useState(false);
+  const toast = useToast();
 
   const copyCode = async () => {
     if (await copyText(ticket.code)) {
       setCopied(true);
+      toast("Ticket code copied", "success");
       setTimeout(() => setCopied(false), 2000);
+    } else {
+      toast("Couldn't copy - write it down", "error");
     }
   };
 
@@ -889,15 +981,15 @@ function TicketForm({ onCreated }) {
       <div className="form-grid">
         <label>
           Name
-          <input required value={form.name} onChange={(event) => updateField("name", event.target.value)} placeholder="Your name" />
+          <input required maxLength={LIMITS.name} value={form.name} onChange={(event) => updateField("name", event.target.value)} placeholder="Your name" />
         </label>
         <label>
           Discord
-          <input required value={form.discord} onChange={(event) => updateField("discord", event.target.value)} placeholder="@username" />
+          <input required maxLength={LIMITS.discord} value={form.discord} onChange={(event) => updateField("discord", event.target.value)} placeholder="@username" />
         </label>
         <label>
           Email
-          <input type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} placeholder="Optional" />
+          <input type="email" maxLength={LIMITS.email} value={form.email} onChange={(event) => updateField("email", event.target.value)} placeholder="Optional" />
         </label>
         <label>
           Package
@@ -909,17 +1001,18 @@ function TicketForm({ onCreated }) {
         </label>
         <label>
           Budget
-          <input value={form.budget} onChange={(event) => updateField("budget", event.target.value)} placeholder="$ / Robux" />
+          <input maxLength={LIMITS.budget} value={form.budget} onChange={(event) => updateField("budget", event.target.value)} placeholder="$ / Robux" />
         </label>
         <label>
           Deadline
-          <input value={form.deadline} onChange={(event) => updateField("deadline", event.target.value)} placeholder="Example: 2 weeks" />
+          <input maxLength={LIMITS.deadline} value={form.deadline} onChange={(event) => updateField("deadline", event.target.value)} placeholder="Example: 2 weeks" />
         </label>
       </div>
       <label>
         Project brief
         <textarea
           required
+          maxLength={LIMITS.brief}
           value={form.brief}
           onChange={(event) => updateField("brief", event.target.value)}
           placeholder="Frames needed, references, game style, import details, and anything important."
@@ -953,8 +1046,9 @@ function TicketView({ ticket, onBack }) {
   };
 
   useEffect(() => {
+    // Pull the latest state from the backend when the ticket opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
     refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const addReply = async () => {
@@ -1034,7 +1128,7 @@ function TicketView({ ticket, onBack }) {
         ))}
       </div>
       <div className="reply-box">
-        <textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Add a message, payment proof, or extra reference notes." />
+        <textarea maxLength={LIMITS.reply} value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Add a message, payment proof, or extra reference notes." />
         <button className="btn primary" type="button" onClick={addReply} disabled={busy}>
           <Send size={16} />
           {busy ? "Sending..." : "Reply"}
@@ -1061,11 +1155,27 @@ function AdminDesk({ setMode }) {
   const [selectedId, setSelectedId] = useState(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [sort, setSort] = useState("recent");
+  const [dateRange, setDateRange] = useState("all");
+  const [showArchived, setShowArchived] = useState(false);
+  const [lastSeen, setLastSeen] = useState(() => Number(localStorage.getItem(ADMIN_SEEN_KEY)) || 0);
+  const toast = useToast();
+  const knownIds = useRef(null);
 
   const load = async () => {
     setLoading(true);
     try {
-      setTickets(await listTickets());
+      const next = await listTickets();
+      // After the first load, announce tickets that are genuinely new.
+      if (knownIds.current) {
+        const fresh = next.filter((ticket) => !knownIds.current.has(ticket.id));
+        if (fresh.length) {
+          notifyNewTickets(fresh);
+          toast(`${fresh.length} new ticket${fresh.length > 1 ? "s" : ""}`, "success");
+        }
+      }
+      knownIds.current = new Set(next.map((ticket) => ticket.id));
+      setTickets(next);
     } catch {
       // surfaced indirectly via empty list
     } finally {
@@ -1083,26 +1193,61 @@ function AdminDesk({ setMode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Live updates: Supabase realtime in cloud mode, light polling otherwise.
+  useEffect(() => {
+    if (!isAuthed) return undefined;
+    const unsub = subscribeTickets(load);
+    return unsub;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthed]);
+
+  const markSeen = () => {
+    const now = Date.now();
+    setLastSeen(now);
+    localStorage.setItem(ADMIN_SEEN_KEY, String(now));
+  };
+
+  const unreadCount = useMemo(
+    () => tickets.filter((ticket) => new Date(ticket.createdAt).getTime() > lastSeen).length,
+    [tickets, lastSeen],
+  );
+
   const counts = useMemo(() => {
-    const base = { All: tickets.length };
+    const active = tickets.filter((ticket) => showArchived || !ticket.archived);
+    const base = { All: active.length };
     TICKET_STATUSES.forEach((status) => {
-      base[status] = tickets.filter((ticket) => ticket.status === status).length;
+      base[status] = active.filter((ticket) => ticket.status === status).length;
     });
     return base;
-  }, [tickets]);
+  }, [tickets, showArchived]);
 
   const visibleTickets = useMemo(() => {
     const term = query.trim().toLowerCase();
-    return [...tickets]
+    // Relative date filtering legitimately needs the current time.
+    // eslint-disable-next-line react-hooks/purity
+    const cutoff = dateRange === "all" ? 0 : Date.now() - Number(dateRange) * 24 * 60 * 60 * 1000;
+    const sorters = {
+      recent: (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt),
+      oldest: (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
+      status: (a, b) => TICKET_STATUSES.indexOf(a.status) - TICKET_STATUSES.indexOf(b.status),
+    };
+    return tickets
+      .filter((ticket) => showArchived || !ticket.archived)
       .filter((ticket) => statusFilter === "All" || ticket.status === statusFilter)
+      .filter((ticket) => new Date(ticket.createdAt).getTime() >= cutoff)
       .filter((ticket) => {
         if (!term) return true;
         return [ticket.code, ticket.name, ticket.discord, ticket.brief]
           .filter(Boolean)
           .some((field) => field.toLowerCase().includes(term));
       })
-      .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-  }, [tickets, query, statusFilter]);
+      .sort(sorters[sort] || sorters.recent);
+  }, [tickets, query, statusFilter, sort, dateRange, showArchived]);
+
+  const exportCsv = () => {
+    exportTicketsCsv(visibleTickets);
+    toast("Exported visible tickets to CSV", "success");
+  };
 
   const selected = useMemo(
     () => tickets.find((ticket) => ticket.id === selectedId) || visibleTickets[0],
@@ -1177,9 +1322,19 @@ function AdminDesk({ setMode }) {
   return (
     <div className="admin-shell">
       <div className="admin-toolbar">
+        {unreadCount > 0 && (
+          <button className="btn dark unread-pill" type="button" onClick={markSeen} title="Mark all as seen">
+            <span className="unread-dot" />
+            {unreadCount} new
+          </button>
+        )}
         <button className="btn dark" type="button" onClick={load} disabled={loading}>
           <RefreshCw size={15} />
           {loading ? "Loading..." : "Refresh"}
+        </button>
+        <button className="btn dark" type="button" onClick={exportCsv} disabled={!visibleTickets.length}>
+          <Download size={15} />
+          CSV
         </button>
         {isCloud && (
           <button className="btn dark" type="button" onClick={signOut}>
@@ -1202,16 +1357,45 @@ function AdminDesk({ setMode }) {
         ))}
       </div>
       {tickets.length === 0 ? (
-        <div className="empty-state">
-          <Inbox size={26} />
-          <strong>{loading ? "Loading tickets..." : "No tickets yet"}</strong>
-          <span>New website requests will appear here.</span>
-        </div>
+        loading ? (
+          <div className="skeleton-list">
+            {[0, 1, 2, 3, 4].map((row) => (
+              <div className="skeleton-row" key={row} />
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state">
+            <Inbox size={26} />
+            <strong>No tickets yet</strong>
+            <span>New website requests will appear here.</span>
+          </div>
+        )
       ) : (
         <>
-          <div className="admin-search">
-            <Search size={15} />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search code, name, Discord, or brief" />
+          <div className="admin-controls">
+            <div className="admin-search">
+              <Search size={15} />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search code, name, Discord, or brief" />
+            </div>
+            <select className="admin-select" value={sort} onChange={(event) => setSort(event.target.value)} aria-label="Sort tickets">
+              <option value="recent">Most recent</option>
+              <option value="oldest">Oldest first</option>
+              <option value="status">By stage</option>
+            </select>
+            <select className="admin-select" value={dateRange} onChange={(event) => setDateRange(event.target.value)} aria-label="Filter by date">
+              <option value="all">All time</option>
+              <option value="7">Last 7 days</option>
+              <option value="30">Last 30 days</option>
+              <option value="90">Last 90 days</option>
+            </select>
+            <button
+              className={showArchived ? "btn dark active" : "btn dark"}
+              type="button"
+              onClick={() => setShowArchived((value) => !value)}
+            >
+              <Archive size={15} />
+              {showArchived ? "Showing archived" : "Show archived"}
+            </button>
           </div>
           <div className="admin-grid">
             <div className="ticket-list">
@@ -1221,20 +1405,26 @@ function AdminDesk({ setMode }) {
                   <span>No tickets match this filter.</span>
                 </div>
               )}
-              {visibleTickets.map((ticket) => (
-                <button
-                  className={selected?.id === ticket.id ? "ticket-row active" : "ticket-row"}
-                  type="button"
-                  key={ticket.id}
-                  onClick={() => setSelectedId(ticket.id)}
-                >
-                  <span>{ticket.code}</span>
-                  <strong>{ticket.name}</strong>
-                  <small>
-                    {ticket.status} - {new Date(ticket.updatedAt).toLocaleDateString()}
-                  </small>
-                </button>
-              ))}
+              {visibleTickets.map((ticket) => {
+                const isUnread = new Date(ticket.createdAt).getTime() > lastSeen;
+                const classes = ["ticket-row"];
+                if (selected?.id === ticket.id) classes.push("active");
+                if (isUnread) classes.push("unread");
+                if (ticket.archived) classes.push("archived");
+                return (
+                  <button className={classes.join(" ")} type="button" key={ticket.id} onClick={() => setSelectedId(ticket.id)}>
+                    <span>
+                      {isUnread && <span className="unread-dot" aria-label="New" />}
+                      {ticket.code}
+                      {ticket.archived && <em className="row-archived">archived</em>}
+                    </span>
+                    <strong>{ticket.name}</strong>
+                    <small>
+                      {ticket.status} - {new Date(ticket.updatedAt).toLocaleDateString()}
+                    </small>
+                  </button>
+                );
+              })}
             </div>
             {selected && <AdminDetail key={selected.id} ticket={selected} onChanged={load} />}
           </div>
@@ -1249,57 +1439,70 @@ function AdminDetail({ ticket, onChanged }) {
   const [quote, setQuote] = useState(ticket.quote || "");
   const [link, setLink] = useState(ticket.delivery?.link || "");
   const [deliveryNote, setDeliveryNote] = useState(ticket.delivery?.note || "");
+  const [internalNote, setInternalNote] = useState(ticket.internalNote || "");
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
 
-  const run = async (action) => {
+  const run = async (action, successMessage) => {
     if (busy) return;
     setBusy(true);
     try {
       await action();
       await onChanged();
+      if (successMessage) toast(successMessage, "success");
+    } catch {
+      toast("That didn't go through. Please try again.", "error");
     } finally {
       setBusy(false);
     }
   };
 
-  const changeStatus = (status) => run(() => updateTicket(ticket.id, { status }));
+  const changeStatus = (status) => run(() => updateTicket(ticket.id, { status }), `Status set to ${status}`);
 
   const sendReply = () => {
     if (!reply.trim()) return;
     run(async () => {
       await addAdminReply(ticket.id, reply);
       setReply("");
-    });
+    }, "Reply sent");
   };
 
   const saveQuote = () => {
     const earlyStage = ticket.status === "Open" || ticket.status === "In Review";
-    run(() => updateTicket(ticket.id, { quote: quote.trim(), ...(earlyStage ? { status: "Quoted" } : {}) }));
+    run(() => updateTicket(ticket.id, { quote: quote.trim(), ...(earlyStage ? { status: "Quoted" } : {}) }), "Quote saved");
   };
 
-  const saveDelivery = () => run(() => updateTicket(ticket.id, { delivery: { link: link.trim(), note: deliveryNote.trim() } }));
+  const saveDelivery = () =>
+    run(() => updateTicket(ticket.id, { delivery: { link: link.trim(), note: deliveryNote.trim() } }), "Delivery files saved");
+
+  const saveInternalNote = () => run(() => updateTicket(ticket.id, { internalNote: internalNote.trim() }), "Private note saved");
 
   const releaseFiles = () => {
     if (!link.trim()) {
-      window.alert("Add a delivery link before releasing files.");
+      toast("Add a delivery link before releasing files.", "error");
       return;
     }
     if (!window.confirm("Confirm payment received? This marks the ticket Delivered and unlocks the files for the client.")) {
       return;
     }
-    run(() =>
-      updateTicket(ticket.id, {
-        status: "Delivered",
-        delivery: { link: link.trim(), note: deliveryNote.trim() },
-        releasedAt: new Date().toISOString(),
-      }),
+    run(
+      () =>
+        updateTicket(ticket.id, {
+          status: "Delivered",
+          delivery: { link: link.trim(), note: deliveryNote.trim() },
+          releasedAt: new Date().toISOString(),
+        }),
+      "Files released to client",
     );
   };
 
   const removeTicket = () => {
     if (!window.confirm(`Delete ticket ${ticket.code} from ${ticket.name}? This cannot be undone.`)) return;
-    run(() => deleteTicket(ticket.id));
+    run(() => deleteTicket(ticket.id), "Ticket deleted");
   };
+
+  const toggleArchive = () =>
+    run(() => updateTicket(ticket.id, { archived: !ticket.archived }), ticket.archived ? "Ticket unarchived" : "Ticket archived");
 
   return (
     <div className="admin-detail">
@@ -1314,11 +1517,24 @@ function AdminDetail({ ticket, onChanged }) {
             </p>
           </div>
         </div>
-        <button className="icon-btn danger" type="button" onClick={removeTicket} disabled={busy} aria-label="Delete ticket">
-          <Trash2 size={17} />
-        </button>
+        <div className="detail-actions">
+          <button
+            className="icon-btn"
+            type="button"
+            onClick={toggleArchive}
+            disabled={busy}
+            aria-label={ticket.archived ? "Unarchive ticket" : "Archive ticket"}
+            title={ticket.archived ? "Unarchive" : "Archive"}
+          >
+            {ticket.archived ? <ArchiveRestore size={17} /> : <Archive size={17} />}
+          </button>
+          <button className="icon-btn danger" type="button" onClick={removeTicket} disabled={busy} aria-label="Delete ticket">
+            <Trash2 size={17} />
+          </button>
+        </div>
       </div>
       <div className="admin-meta">
+        {ticket.archived && <span className="meta-archived">Archived</span>}
         {ticket.email && <span>{ticket.email}</span>}
         {ticket.budget && <span>Budget: {ticket.budget}</span>}
         {ticket.deadline && <span>Deadline: {ticket.deadline}</span>}
@@ -1381,6 +1597,33 @@ function AdminDetail({ ticket, onChanged }) {
         )}
       </div>
 
+      <div className="admin-panel-block">
+        <strong className="block-title">
+          <EyeOff size={14} /> Private note
+        </strong>
+        <p className="block-hint">Only visible to you - never shown to the client.</p>
+        <textarea value={internalNote} onChange={(event) => setInternalNote(event.target.value)} placeholder="Internal notes, pricing math, reminders..." />
+        <button className="btn dark" type="button" onClick={saveInternalNote} disabled={busy}>
+          Save private note
+        </button>
+      </div>
+
+      {ticket.statusLog?.length > 1 && (
+        <div className="admin-panel-block">
+          <strong className="block-title">
+            <Clock3 size={14} /> Status history
+          </strong>
+          <ol className="status-log">
+            {ticket.statusLog.map((entry, index) => (
+              <li key={`${entry.at}-${index}`}>
+                <span>{entry.status}</span>
+                <small>{new Date(entry.at).toLocaleString()}</small>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
       <div className="reply-list">
         <Reply from="GXLD" body={ticket.adminNote} at={ticket.adminNoteAt || ticket.createdAt} />
         {ticket.replies.map((entry, index) => (
@@ -1388,7 +1631,7 @@ function AdminDetail({ ticket, onChanged }) {
         ))}
       </div>
       <div className="reply-box">
-        <textarea value={reply} onChange={(event) => setReply(event.target.value)} placeholder="Reply to the client as GXLD." />
+        <textarea maxLength={LIMITS.reply} value={reply} onChange={(event) => setReply(event.target.value)} placeholder="Reply to the client as GXLD." />
         <button className="btn primary" type="button" onClick={sendReply} disabled={busy}>
           <Send size={16} />
           Send Reply
@@ -1474,17 +1717,53 @@ function PaymentInstructions({ quote }) {
 }
 
 function ModalShell({ children, onClose, size }) {
+  const cardRef = useRef(null);
+
   useEffect(() => {
+    const previouslyFocused = document.activeElement;
+    const card = cardRef.current;
+    const focusable = () =>
+      Array.from(
+        card?.querySelectorAll('a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])') || [],
+      ).filter((el) => el.offsetParent !== null);
+
+    focusable()[0]?.focus();
+
     const onKeyDown = (event) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const items = focusable();
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
+
     document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      if (previouslyFocused instanceof HTMLElement) previouslyFocused.focus();
+    };
   }, [onClose]);
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
-      <div className={`modal-card ${size}`} role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}>
+      <div
+        className={`modal-card ${size}`}
+        role="dialog"
+        aria-modal="true"
+        ref={cardRef}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
         {children}
       </div>
     </div>
@@ -1518,4 +1797,42 @@ function getContactSubtitle(mode) {
   return "Choose the fastest path for your commission.";
 }
 
-createRoot(document.getElementById("root")).render(<App />);
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, info) {
+    console.error("App crashed:", error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="app-error">
+          <ShieldAlert size={26} />
+          <h2>Something went wrong</h2>
+          <p>The page hit an unexpected error. Reloading usually fixes it.</p>
+          <button className="btn primary" type="button" onClick={() => window.location.reload()}>
+            <RefreshCw size={16} />
+            Reload
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+createRoot(document.getElementById("root")).render(
+  <ErrorBoundary>
+    <ToastProvider>
+      <App />
+    </ToastProvider>
+  </ErrorBoundary>,
+);
