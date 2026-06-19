@@ -1353,6 +1353,19 @@ select option {
   gap: 14px;
 }
 
+.admin-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.admin-toolbar .btn {
+  min-height: 38px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
 .admin-stats {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));

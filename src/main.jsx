@@ -18,10 +18,12 @@ import {
   LayoutGrid,
   Lock,
   LogIn,
+  LogOut,
   Maximize2,
   MessageCircle,
   Palette,
   Play,
+  RefreshCw,
   Search,
   Send,
   Shield,
@@ -38,10 +40,21 @@ import {
   Zap,
 } from "lucide-react";
 import "./styles.css";
+import {
+  addAdminReply,
+  addClientReply,
+  adminSignIn,
+  adminSignOut,
+  createTicket,
+  deleteTicket,
+  getAdminSession,
+  getTicketByCode,
+  isCloud,
+  listTickets,
+  updateTicket,
+} from "./tickets";
 
 const DISCORD_USER_ID = "<@1188805446455271426>";
-const ADMIN_ACCESS_CODE = "GXLD-ADMIN-2026";
-const TICKETS_KEY = "gxld-ticket-store";
 // Ordered commission stages. Payment is collected on delivery: files stay locked
 // until GXLD confirms payment has landed, then they release to the client.
 const TICKET_STATUSES = ["Open", "In Review", "Quoted", "In Progress", "Ready for Delivery", "Delivered"];
@@ -56,29 +69,6 @@ const PAYMENT = {
 // To get an email when a ticket is opened, paste a Formspree endpoint here
 // (create a free form at https://formspree.io and use its "https://formspree.io/f/xxxx" URL).
 // Any webhook/endpoint that accepts a JSON POST works too. Leave empty to disable.
-const TICKET_NOTIFY_ENDPOINT = "https://formspree.io/f/xojzgjkd";
-
-const notifyNewTicket = (ticket) => {
-  if (!TICKET_NOTIFY_ENDPOINT) return;
-  // Best-effort: never block ticket creation if the request fails.
-  fetch(TICKET_NOTIFY_ENDPOINT, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({
-      _subject: `New GXLD ticket ${ticket.code} from ${ticket.name}`,
-      code: ticket.code,
-      name: ticket.name,
-      discord: ticket.discord,
-      email: ticket.email,
-      package: ticket.packageType,
-      budget: ticket.budget,
-      deadline: ticket.deadline,
-      brief: ticket.brief,
-      openedAt: ticket.createdAt,
-    }),
-  }).catch(() => {});
-};
-
 const work = [
   {
     title: "Futuristic Anime UI",
@@ -190,24 +180,6 @@ const faqs = [
   ["Do I get the original files?", "Yes. Finished work includes export assets and originals so your team can keep editing later."],
 ];
 
-const getStoredTickets = () => {
-  try {
-    const stored = localStorage.getItem(TICKETS_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-};
-
-const saveTickets = (tickets) => {
-  localStorage.setItem(TICKETS_KEY, JSON.stringify(tickets));
-};
-
-const makeTicketCode = () => {
-  const chunk = Math.random().toString(36).slice(2, 7).toUpperCase();
-  return `GX-${chunk}`;
-};
-
 const copyText = async (value) => {
   try {
     if (navigator.clipboard?.writeText) {
@@ -300,12 +272,6 @@ function App() {
   const [activePreview, setActivePreview] = useState(null);
   const [showAllWork, setShowAllWork] = useState(false);
   const [contactMode, setContactMode] = useState(null);
-  const [tickets, setTickets] = useState(getStoredTickets);
-
-  const updateTickets = (nextTickets) => {
-    setTickets(nextTickets);
-    saveTickets(nextTickets);
-  };
 
   useScrollReveal([showAllWork]);
 
@@ -328,15 +294,7 @@ function App() {
       <Faq onContact={() => setContactMode("choice")} />
       <Footer onContact={() => setContactMode("choice")} />
       {activePreview && <PreviewModal item={activePreview} onClose={() => setActivePreview(null)} />}
-      {contactMode && (
-        <ContactModal
-          mode={contactMode}
-          setMode={setContactMode}
-          tickets={tickets}
-          updateTickets={updateTickets}
-          onClose={() => setContactMode(null)}
-        />
-      )}
+      {contactMode && <ContactModal mode={contactMode} setMode={setContactMode} onClose={() => setContactMode(null)} />}
     </main>
   );
 }
@@ -691,7 +649,7 @@ function PreviewModal({ item, onClose }) {
   );
 }
 
-function ContactModal({ mode, setMode, tickets, updateTickets, onClose }) {
+function ContactModal({ mode, setMode, onClose }) {
   return (
     <ModalShell onClose={onClose} size="contact">
       <div className="contact-modal">
@@ -707,8 +665,8 @@ function ContactModal({ mode, setMode, tickets, updateTickets, onClose }) {
         </div>
         {mode === "choice" && <ContactChoice setMode={setMode} />}
         {mode === "discord" && <DiscordInstructions setMode={setMode} />}
-        {mode === "ticket" && <TicketDesk tickets={tickets} updateTickets={updateTickets} setMode={setMode} />}
-        {mode === "admin" && <AdminDesk tickets={tickets} updateTickets={updateTickets} setMode={setMode} />}
+        {mode === "ticket" && <TicketDesk setMode={setMode} />}
+        {mode === "admin" && <AdminDesk setMode={setMode} />}
       </div>
     </ModalShell>
   );
@@ -720,7 +678,7 @@ function ContactChoice({ setMode }) {
       <button className="choice-card" type="button" onClick={() => setMode("ticket")}>
         <Ticket size={22} />
         <strong>Open Website Ticket</strong>
-        <span>Structured request, ticket code, and saved status on this device.</span>
+        <span>Structured request with a ticket code to track status and receive your files.</span>
       </button>
       <button className="choice-card" type="button" onClick={() => setMode("discord")}>
         <MessageCircle size={22} />
@@ -730,7 +688,7 @@ function ContactChoice({ setMode }) {
       <button className="choice-card compact" type="button" onClick={() => setMode("admin")}>
         <Shield size={20} />
         <strong>Administration</strong>
-        <span>Review tickets with the owner access code.</span>
+        <span>Owner login to review and manage all tickets.</span>
       </button>
     </div>
   );
@@ -769,20 +727,26 @@ function DiscordInstructions({ setMode }) {
   );
 }
 
-function TicketDesk({ tickets, updateTickets, setMode }) {
+function TicketDesk({ setMode }) {
   const [view, setView] = useState("create");
   const [activeTicket, setActiveTicket] = useState(null);
   const [createdTicket, setCreatedTicket] = useState(null);
   const [lookupCode, setLookupCode] = useState("");
-  const [lookupError, setLookupError] = useState(false);
+  const [lookupError, setLookupError] = useState("");
+  const [looking, setLooking] = useState(false);
 
-  const findTicket = () => {
-    const found = tickets.find((ticket) => ticket.code.toLowerCase() === lookupCode.trim().toLowerCase());
-    if (found) {
-      setActiveTicket(found);
-      setLookupError(false);
-    } else {
-      setLookupError(true);
+  const findTicket = async () => {
+    if (!lookupCode.trim() || looking) return;
+    setLooking(true);
+    setLookupError("");
+    try {
+      const found = await getTicketByCode(lookupCode);
+      if (found) setActiveTicket(found);
+      else setLookupError("No ticket found with that code.");
+    } catch {
+      setLookupError("Could not reach the server. Please try again.");
+    } finally {
+      setLooking(false);
     }
   };
 
@@ -799,7 +763,7 @@ function TicketDesk({ tickets, updateTickets, setMode }) {
   }
 
   if (activeTicket) {
-    return <TicketView ticket={activeTicket} tickets={tickets} updateTickets={updateTickets} onBack={() => setActiveTicket(null)} />;
+    return <TicketView ticket={activeTicket} onBack={() => setActiveTicket(null)} />;
   }
 
   return (
@@ -815,12 +779,7 @@ function TicketDesk({ tickets, updateTickets, setMode }) {
         </button>
       </div>
       {view === "create" ? (
-        <TicketForm
-          onCreated={(ticket) => {
-            updateTickets([ticket, ...tickets]);
-            setCreatedTicket(ticket);
-          }}
-        />
+        <TicketForm onCreated={(ticket) => setCreatedTicket(ticket)} />
       ) : (
         <div className="lookup-panel">
           <label>
@@ -829,16 +788,16 @@ function TicketDesk({ tickets, updateTickets, setMode }) {
               value={lookupCode}
               onChange={(event) => {
                 setLookupCode(event.target.value);
-                setLookupError(false);
+                setLookupError("");
               }}
               onKeyDown={(event) => event.key === "Enter" && findTicket()}
               placeholder="GX-ABCDE"
             />
           </label>
-          {lookupError && <p className="form-error">No ticket with that code on this device.</p>}
-          <button className="btn primary" type="button" onClick={findTicket}>
+          {lookupError && <p className="form-error">{lookupError}</p>}
+          <button className="btn primary" type="button" onClick={findTicket} disabled={looking}>
             <Search size={16} />
-            Find Ticket
+            {looking ? "Searching..." : "Find Ticket"}
           </button>
           <button className="btn dark" type="button" onClick={() => setMode("choice")}>
             <ArrowLeft size={16} />
@@ -904,26 +863,25 @@ function TicketForm({ onCreated }) {
     brief: "",
   });
 
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
   const updateField = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
   };
 
-  const submit = (event) => {
+  const submit = async (event) => {
     event.preventDefault();
-    const now = new Date().toISOString();
-    const ticket = {
-      ...form,
-      id: crypto.randomUUID(),
-      code: makeTicketCode(),
-      status: "Open",
-      createdAt: now,
-      updatedAt: now,
-      adminNote: "Thanks for opening a ticket. GXLD will review your brief and reply soon.",
-      adminNoteAt: now,
-      replies: [],
-    };
-    notifyNewTicket(ticket);
-    onCreated(ticket);
+    if (submitting) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      const ticket = await createTicket(form);
+      onCreated(ticket);
+    } catch {
+      setError("Could not create your ticket. Please try again in a moment.");
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -967,36 +925,53 @@ function TicketForm({ onCreated }) {
           placeholder="Frames needed, references, game style, import details, and anything important."
         />
       </label>
-      <button className="btn primary" type="submit">
+      {error && <p className="form-error">{error}</p>}
+      <button className="btn primary" type="submit" disabled={submitting}>
         <Send size={16} />
-        Create Ticket
+        {submitting ? "Creating..." : "Create Ticket"}
       </button>
     </form>
   );
 }
 
-function TicketView({ ticket, tickets, updateTickets, onBack }) {
+function TicketView({ ticket, onBack }) {
+  const [current, setCurrent] = useState(ticket);
   const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const addReply = () => {
-    if (!message.trim()) return;
-    const nextTickets = tickets.map((item) =>
-      item.id === ticket.id
-        ? {
-            ...item,
-            updatedAt: new Date().toISOString(),
-            replies: [...item.replies, { from: "Client", body: message.trim(), at: new Date().toISOString() }],
-          }
-        : item,
-    );
-    updateTickets(nextTickets);
-    setMessage("");
+  const refresh = async () => {
+    setRefreshing(true);
+    try {
+      const fresh = await getTicketByCode(current.code);
+      if (fresh) setCurrent(fresh);
+    } catch {
+      // keep showing the last known state
+    } finally {
+      setRefreshing(false);
+    }
   };
 
-  const currentTicket = tickets.find((item) => item.id === ticket.id) || ticket;
-  const isDelivered = currentTicket.status === "Delivered";
-  const isReady = currentTicket.status === "Ready for Delivery";
-  const delivery = currentTicket.delivery;
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const addReply = async () => {
+    if (!message.trim() || busy) return;
+    setBusy(true);
+    try {
+      const updated = await addClientReply(current.code, message);
+      if (updated) setCurrent(updated);
+      setMessage("");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const isDelivered = current.status === "Delivered";
+  const isReady = current.status === "Ready for Delivery";
+  const delivery = current.delivery;
 
   return (
     <div className="ticket-view">
@@ -1005,21 +980,24 @@ function TicketView({ ticket, tickets, updateTickets, onBack }) {
           <ArrowLeft size={17} />
         </button>
         <div>
-          <span>{currentTicket.code}</span>
-          <h3>{currentTicket.packageType}</h3>
-          <p>{currentTicket.status} - Updated {new Date(currentTicket.updatedAt).toLocaleDateString()}</p>
+          <span>{current.code}</span>
+          <h3>{current.packageType}</h3>
+          <p>{current.status} - Updated {new Date(current.updatedAt).toLocaleDateString()}</p>
         </div>
+        <button className="icon-btn" type="button" onClick={refresh} disabled={refreshing} aria-label="Refresh ticket">
+          <RefreshCw size={16} />
+        </button>
       </div>
-      <TicketProgress status={currentTicket.status} />
+      <TicketProgress status={current.status} />
       <div className="status-row">
-        <StatusPill status={currentTicket.status} />
-        <span>{currentTicket.name}</span>
-        <span>{currentTicket.discord}</span>
-        {currentTicket.quote && <span className="quote-chip">Quote: {currentTicket.quote}</span>}
+        <StatusPill status={current.status} />
+        <span>{current.name}</span>
+        <span>{current.discord}</span>
+        {current.quote && <span className="quote-chip">Quote: {current.quote}</span>}
       </div>
       <div className="ticket-body">
         <strong>Project Brief</strong>
-        <p>{currentTicket.brief}</p>
+        <p>{current.brief}</p>
       </div>
 
       <div className={`delivery-card ${isDelivered ? "unlocked" : isReady ? "ready" : "locked"}`}>
@@ -1042,7 +1020,7 @@ function TicketView({ ticket, tickets, updateTickets, onBack }) {
         ) : isReady ? (
           <>
             <p>Your project is finished. Complete payment and your files unlock here automatically.</p>
-            <PaymentInstructions quote={currentTicket.quote} />
+            <PaymentInstructions quote={current.quote} />
           </>
         ) : (
           <p>Your files appear here once the project is finished and your payment is confirmed.</p>
@@ -1050,16 +1028,16 @@ function TicketView({ ticket, tickets, updateTickets, onBack }) {
       </div>
 
       <div className="reply-list">
-        <Reply from="GXLD" body={currentTicket.adminNote} at={currentTicket.adminNoteAt || currentTicket.createdAt} />
-        {currentTicket.replies.map((reply, index) => (
+        <Reply from="GXLD" body={current.adminNote} at={current.adminNoteAt || current.createdAt} />
+        {current.replies.map((reply, index) => (
           <Reply key={`${reply.at}-${index}`} {...reply} />
         ))}
       </div>
       <div className="reply-box">
         <textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Add a message, payment proof, or extra reference notes." />
-        <button className="btn primary" type="button" onClick={addReply}>
+        <button className="btn primary" type="button" onClick={addReply} disabled={busy}>
           <Send size={16} />
-          Reply
+          {busy ? "Sending..." : "Reply"}
         </button>
       </div>
 
@@ -1072,13 +1050,38 @@ function TicketView({ ticket, tickets, updateTickets, onBack }) {
   );
 }
 
-function AdminDesk({ tickets, updateTickets, setMode }) {
-  const [accessCode, setAccessCode] = useState("");
+function AdminDesk({ setMode }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isAuthed, setIsAuthed] = useState(false);
-  const [authError, setAuthError] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [tickets, setTickets] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      setTickets(await listTickets());
+    } catch {
+      // surfaced indirectly via empty list
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    (async () => {
+      if (await getAdminSession()) {
+        setIsAuthed(true);
+        load();
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const counts = useMemo(() => {
     const base = { All: tickets.length };
@@ -1106,32 +1109,62 @@ function AdminDesk({ tickets, updateTickets, setMode }) {
     [tickets, selectedId, visibleTickets],
   );
 
-  const tryAuth = () => {
-    const ok = accessCode === ADMIN_ACCESS_CODE;
-    setIsAuthed(ok);
-    setAuthError(!ok);
+  const tryAuth = async () => {
+    if (authBusy) return;
+    setAuthBusy(true);
+    setAuthError("");
+    const { ok, error } = await adminSignIn(email, password);
+    setAuthBusy(false);
+    if (ok) {
+      setIsAuthed(true);
+      load();
+    } else {
+      setAuthError(error || (isCloud ? "Login failed. Check your email and password." : "Incorrect access code."));
+    }
+  };
+
+  const signOut = async () => {
+    await adminSignOut();
+    setIsAuthed(false);
+    setPassword("");
+    setTickets([]);
   };
 
   if (!isAuthed) {
     return (
       <div className="lookup-panel">
+        {isCloud && (
+          <label>
+            Owner email
+            <input
+              type="email"
+              value={email}
+              onChange={(event) => {
+                setEmail(event.target.value);
+                setAuthError("");
+              }}
+              onKeyDown={(event) => event.key === "Enter" && tryAuth()}
+              placeholder="you@email.com"
+            />
+          </label>
+        )}
         <label>
-          Owner access code
+          {isCloud ? "Password" : "Owner access code"}
           <input
             type="password"
-            value={accessCode}
+            value={password}
             onChange={(event) => {
-              setAccessCode(event.target.value);
-              setAuthError(false);
+              setPassword(event.target.value);
+              setAuthError("");
             }}
             onKeyDown={(event) => event.key === "Enter" && tryAuth()}
-            placeholder="Access code"
+            placeholder={isCloud ? "Password" : "Access code"}
           />
         </label>
-        {authError && <p className="form-error">Incorrect access code. Try again.</p>}
-        <button className="btn primary" type="button" onClick={tryAuth}>
+        {authError && <p className="form-error">{authError}</p>}
+        <button className="btn primary" type="button" onClick={tryAuth} disabled={authBusy}>
           <Shield size={16} />
-          Enter Admin
+          {authBusy ? "Checking..." : "Enter Admin"}
         </button>
         <button className="btn dark" type="button" onClick={() => setMode("choice")}>
           <ArrowLeft size={16} />
@@ -1141,18 +1174,20 @@ function AdminDesk({ tickets, updateTickets, setMode }) {
     );
   }
 
-  if (tickets.length === 0) {
-    return (
-      <div className="empty-state">
-        <Inbox size={26} />
-        <strong>No tickets yet</strong>
-        <span>New website requests will appear here.</span>
-      </div>
-    );
-  }
-
   return (
     <div className="admin-shell">
+      <div className="admin-toolbar">
+        <button className="btn dark" type="button" onClick={load} disabled={loading}>
+          <RefreshCw size={15} />
+          {loading ? "Loading..." : "Refresh"}
+        </button>
+        {isCloud && (
+          <button className="btn dark" type="button" onClick={signOut}>
+            <LogOut size={15} />
+            Sign out
+          </button>
+        )}
+      </div>
       <div className="admin-stats">
         {["All", ...TICKET_STATUSES].map((status) => (
           <button
@@ -1166,63 +1201,83 @@ function AdminDesk({ tickets, updateTickets, setMode }) {
           </button>
         ))}
       </div>
-      <div className="admin-search">
-        <Search size={15} />
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search code, name, Discord, or brief" />
-      </div>
-      <div className="admin-grid">
-        <div className="ticket-list">
-          {visibleTickets.length === 0 && (
-            <div className="empty-state compact">
-              <Inbox size={22} />
-              <span>No tickets match this filter.</span>
-            </div>
-          )}
-          {visibleTickets.map((ticket) => (
-            <button
-              className={selected?.id === ticket.id ? "ticket-row active" : "ticket-row"}
-              type="button"
-              key={ticket.id}
-              onClick={() => setSelectedId(ticket.id)}
-            >
-              <span>{ticket.code}</span>
-              <strong>{ticket.name}</strong>
-              <small>
-                {ticket.status} - {new Date(ticket.updatedAt).toLocaleDateString()}
-              </small>
-            </button>
-          ))}
+      {tickets.length === 0 ? (
+        <div className="empty-state">
+          <Inbox size={26} />
+          <strong>{loading ? "Loading tickets..." : "No tickets yet"}</strong>
+          <span>New website requests will appear here.</span>
         </div>
-        {selected && <AdminDetail key={selected.id} ticket={selected} tickets={tickets} updateTickets={updateTickets} />}
-      </div>
+      ) : (
+        <>
+          <div className="admin-search">
+            <Search size={15} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search code, name, Discord, or brief" />
+          </div>
+          <div className="admin-grid">
+            <div className="ticket-list">
+              {visibleTickets.length === 0 && (
+                <div className="empty-state compact">
+                  <Inbox size={22} />
+                  <span>No tickets match this filter.</span>
+                </div>
+              )}
+              {visibleTickets.map((ticket) => (
+                <button
+                  className={selected?.id === ticket.id ? "ticket-row active" : "ticket-row"}
+                  type="button"
+                  key={ticket.id}
+                  onClick={() => setSelectedId(ticket.id)}
+                >
+                  <span>{ticket.code}</span>
+                  <strong>{ticket.name}</strong>
+                  <small>
+                    {ticket.status} - {new Date(ticket.updatedAt).toLocaleDateString()}
+                  </small>
+                </button>
+              ))}
+            </div>
+            {selected && <AdminDetail key={selected.id} ticket={selected} onChanged={load} />}
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
-function AdminDetail({ ticket, tickets, updateTickets }) {
+function AdminDetail({ ticket, onChanged }) {
   const [reply, setReply] = useState("");
   const [quote, setQuote] = useState(ticket.quote || "");
   const [link, setLink] = useState(ticket.delivery?.link || "");
   const [deliveryNote, setDeliveryNote] = useState(ticket.delivery?.note || "");
+  const [busy, setBusy] = useState(false);
 
-  const patch = (changes) => {
-    updateTickets(
-      tickets.map((item) => (item.id === ticket.id ? { ...item, ...changes, updatedAt: new Date().toISOString() } : item)),
-    );
+  const run = async (action) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await action();
+      await onChanged();
+    } finally {
+      setBusy(false);
+    }
   };
+
+  const changeStatus = (status) => run(() => updateTicket(ticket.id, { status }));
 
   const sendReply = () => {
     if (!reply.trim()) return;
-    patch({ replies: [...ticket.replies, { from: "GXLD", body: reply.trim(), at: new Date().toISOString() }] });
-    setReply("");
+    run(async () => {
+      await addAdminReply(ticket.id, reply);
+      setReply("");
+    });
   };
 
   const saveQuote = () => {
     const earlyStage = ticket.status === "Open" || ticket.status === "In Review";
-    patch({ quote: quote.trim(), ...(earlyStage ? { status: "Quoted" } : {}) });
+    run(() => updateTicket(ticket.id, { quote: quote.trim(), ...(earlyStage ? { status: "Quoted" } : {}) }));
   };
 
-  const saveDelivery = () => patch({ delivery: { link: link.trim(), note: deliveryNote.trim() } });
+  const saveDelivery = () => run(() => updateTicket(ticket.id, { delivery: { link: link.trim(), note: deliveryNote.trim() } }));
 
   const releaseFiles = () => {
     if (!link.trim()) {
@@ -1232,16 +1287,18 @@ function AdminDetail({ ticket, tickets, updateTickets }) {
     if (!window.confirm("Confirm payment received? This marks the ticket Delivered and unlocks the files for the client.")) {
       return;
     }
-    patch({
-      status: "Delivered",
-      delivery: { link: link.trim(), note: deliveryNote.trim() },
-      releasedAt: new Date().toISOString(),
-    });
+    run(() =>
+      updateTicket(ticket.id, {
+        status: "Delivered",
+        delivery: { link: link.trim(), note: deliveryNote.trim() },
+        releasedAt: new Date().toISOString(),
+      }),
+    );
   };
 
-  const deleteTicket = () => {
+  const removeTicket = () => {
     if (!window.confirm(`Delete ticket ${ticket.code} from ${ticket.name}? This cannot be undone.`)) return;
-    updateTickets(tickets.filter((item) => item.id !== ticket.id));
+    run(() => deleteTicket(ticket.id));
   };
 
   return (
@@ -1257,7 +1314,7 @@ function AdminDetail({ ticket, tickets, updateTickets }) {
             </p>
           </div>
         </div>
-        <button className="icon-btn danger" type="button" onClick={deleteTicket} aria-label="Delete ticket">
+        <button className="icon-btn danger" type="button" onClick={removeTicket} disabled={busy} aria-label="Delete ticket">
           <Trash2 size={17} />
         </button>
       </div>
@@ -1270,7 +1327,7 @@ function AdminDetail({ ticket, tickets, updateTickets }) {
       <div className="status-edit">
         <label>
           Status
-          <select value={ticket.status} onChange={(event) => patch({ status: event.target.value })}>
+          <select value={ticket.status} onChange={(event) => changeStatus(event.target.value)} disabled={busy}>
             {TICKET_STATUSES.map((status) => (
               <option key={status}>{status}</option>
             ))}
@@ -1287,7 +1344,7 @@ function AdminDetail({ ticket, tickets, updateTickets }) {
           Quote
           <div className="inline-field">
             <input value={quote} onChange={(event) => setQuote(event.target.value)} placeholder="$40 / R$15k" />
-            <button className="btn dark" type="button" onClick={saveQuote}>
+            <button className="btn dark" type="button" onClick={saveQuote} disabled={busy}>
               Save
             </button>
           </div>
@@ -1311,10 +1368,10 @@ function AdminDetail({ ticket, tickets, updateTickets }) {
           <input value={deliveryNote} onChange={(event) => setDeliveryNote(event.target.value)} placeholder="What's included, install notes, etc." />
         </label>
         <div className="delivery-actions">
-          <button className="btn dark" type="button" onClick={saveDelivery}>
+          <button className="btn dark" type="button" onClick={saveDelivery} disabled={busy}>
             Save files
           </button>
-          <button className="btn primary" type="button" onClick={releaseFiles}>
+          <button className="btn primary" type="button" onClick={releaseFiles} disabled={busy}>
             <Unlock size={16} />
             Confirm payment &amp; release
           </button>
@@ -1332,7 +1389,7 @@ function AdminDetail({ ticket, tickets, updateTickets }) {
       </div>
       <div className="reply-box">
         <textarea value={reply} onChange={(event) => setReply(event.target.value)} placeholder="Reply to the client as GXLD." />
-        <button className="btn primary" type="button" onClick={sendReply}>
+        <button className="btn primary" type="button" onClick={sendReply} disabled={busy}>
           <Send size={16} />
           Send Reply
         </button>
