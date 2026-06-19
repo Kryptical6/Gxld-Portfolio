@@ -59,6 +59,7 @@ import {
   turnstileEnabled,
   turnstileSiteKey,
   updateTicket,
+  warmup,
 } from "./tickets";
 
 const DISCORD_USER_ID = "<@1188805446455271426>";
@@ -335,6 +336,10 @@ function App() {
   const [contactMode, setContactMode] = useState(null);
 
   useScrollReveal([showAllWork]);
+
+  useEffect(() => {
+    warmup();
+  }, []);
 
   return (
     <main className="site-shell">
@@ -1877,6 +1882,15 @@ class ErrorBoundary extends React.Component {
     return this.props.children;
   }
 }
+
+// Deploy skew protection: if a code-split chunk fails to load after a new
+// deploy replaced the hashed assets, reload once to pick up the current build.
+window.addEventListener("vite:preloadError", () => {
+  if (!sessionStorage.getItem("skew-reloaded")) {
+    sessionStorage.setItem("skew-reloaded", "1");
+    window.location.reload();
+  }
+});
 
 createRoot(document.getElementById("root")).render(
   <ErrorBoundary>

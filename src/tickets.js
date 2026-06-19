@@ -283,6 +283,16 @@ export async function addAdminReply(id, body) {
   }));
 }
 
+// Fire-and-forget warmup so the first real interaction isn't slow if the
+// project was idle (cold). Cheap RPC that just hits the database.
+export function warmup() {
+  if (!isCloud) return;
+  supabase.rpc("get_ticket", { p_code: "warmup-noop" }).then(
+    () => {},
+    () => {},
+  );
+}
+
 // Live updates for the admin desk. Cloud mode uses Supabase realtime; fallback
 // mode polls localStorage periodically. Returns an unsubscribe function.
 export function subscribeTickets(onChange) {
