@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import "./styles.css";
 
-const DISCORD_USER_ID = "1188805446455271426";
+const DISCORD_USER_ID = "<@1188805446455271426>";
 const ADMIN_ACCESS_CODE = "GXLD-ADMIN-2026";
 const TICKETS_KEY = "gxld-ticket-store";
 
