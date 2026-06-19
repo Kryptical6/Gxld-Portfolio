@@ -56,6 +56,8 @@ import {
   isCloud,
   listTickets,
   subscribeTickets,
+  turnstileEnabled,
+  turnstileSiteKey,
   updateTicket,
 } from "./tickets";
 
@@ -957,6 +959,7 @@ function TicketForm({ onCreated }) {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [captcha, setCaptcha] = useState("");
 
   const updateField = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -965,10 +968,14 @@ function TicketForm({ onCreated }) {
   const submit = async (event) => {
     event.preventDefault();
     if (submitting) return;
+    if (turnstileEnabled && !captcha) {
+      setError("Please complete the verification below.");
+      return;
+    }
     setSubmitting(true);
     setError("");
     try {
-      const ticket = await createTicket(form);
+      const ticket = await createTicket(form, captcha);
       onCreated(ticket);
     } catch {
       setError("Could not create your ticket. Please try again in a moment.");
@@ -1018,6 +1025,7 @@ function TicketForm({ onCreated }) {
           placeholder="Frames needed, references, game style, import details, and anything important."
         />
       </label>
+      {turnstileEnabled && <TurnstileWidget onToken={setCaptcha} />}
       {error && <p className="form-error">{error}</p>}
       <button className="btn primary" type="submit" disabled={submitting}>
         <Send size={16} />
@@ -1025,6 +1033,47 @@ function TicketForm({ onCreated }) {
       </button>
     </form>
   );
+}
+
+function TurnstileWidget({ onToken }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    let widgetId;
+    const render = () => {
+      if (window.turnstile && ref.current && !ref.current.dataset.rendered) {
+        ref.current.dataset.rendered = "1";
+        widgetId = window.turnstile.render(ref.current, {
+          sitekey: turnstileSiteKey,
+          callback: (token) => onToken(token),
+          "error-callback": () => onToken(""),
+          "expired-callback": () => onToken(""),
+        });
+      }
+    };
+
+    if (window.turnstile) {
+      render();
+    } else {
+      let script = document.querySelector("script[data-turnstile]");
+      if (!script) {
+        script = document.createElement("script");
+        script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+        script.async = true;
+        script.defer = true;
+        script.dataset.turnstile = "1";
+        document.head.appendChild(script);
+      }
+      script.addEventListener("load", render);
+    }
+
+    return () => {
+      if (widgetId && window.turnstile) window.turnstile.remove(widgetId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return <div className="turnstile" ref={ref} />;
 }
 
 function TicketView({ ticket, onBack }) {

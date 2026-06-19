@@ -11,5 +11,11 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.js"],
+    // Force the localStorage fallback path under test, regardless of any local
+    // .env Supabase credentials.
+    env: {
+      VITE_SUPABASE_URL: "",
+      VITE_SUPABASE_ANON_KEY: "",
+    },
   },
 });

@@ -2379,3 +2379,7 @@ select option {
     background-position: -200% 0;
   }
 }
+
+.turnstile {
+  min-height: 65px;
+}

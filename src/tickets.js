@@ -14,6 +14,12 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 export const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 export const isCloud = Boolean(supabase);
 
+// Optional Cloudflare Turnstile spam protection. When a site key is configured
+// (and we're in cloud mode), ticket creation routes through the create-ticket
+// edge function, which verifies the captcha server-side.
+export const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
+export const turnstileEnabled = Boolean(turnstileSiteKey) && isCloud;
+
 // Owner code used only in localStorage fallback mode. In cloud mode the admin
 // logs in with a real Supabase email + password instead.
 const LEGACY_ADMIN_CODE = "GXLD-ADMIN-2026";
@@ -122,7 +128,23 @@ const lsUpdate = (id, mutate) => {
 // --------------------------------------------------------------------------
 // Client-facing API
 // --------------------------------------------------------------------------
-export async function createTicket(form) {
+export async function createTicket(form, captchaToken) {
+  if (turnstileEnabled) {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/create-ticket`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ form, token: captchaToken }),
+    });
+    if (!res.ok) throw new Error("Ticket creation failed");
+    const ticket = fromRow(await res.json());
+    notifyNewTicket(ticket);
+    return ticket;
+  }
+
   if (isCloud) {
     const { data, error } = await supabase.rpc("create_ticket", {
       p_name: form.name,
