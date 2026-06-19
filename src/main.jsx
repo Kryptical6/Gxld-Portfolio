@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   ArrowLeft,
@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   Sparkles,
   Ticket,
+  Trash2,
   UserRound,
   Wand2,
   X,
@@ -33,6 +34,33 @@ import "./styles.css";
 const DISCORD_USER_ID = "<@1188805446455271426>";
 const ADMIN_ACCESS_CODE = "GXLD-ADMIN-2026";
 const TICKETS_KEY = "gxld-ticket-store";
+const TICKET_STATUSES = ["Open", "In Review", "Quoted", "In Progress", "Completed"];
+
+// To get an email when a ticket is opened, paste a Formspree endpoint here
+// (create a free form at https://formspree.io and use its "https://formspree.io/f/xxxx" URL).
+// Any webhook/endpoint that accepts a JSON POST works too. Leave empty to disable.
+const TICKET_NOTIFY_ENDPOINT = "https://formspree.io/f/xojzgjkd";
+
+const notifyNewTicket = (ticket) => {
+  if (!TICKET_NOTIFY_ENDPOINT) return;
+  // Best-effort: never block ticket creation if the request fails.
+  fetch(TICKET_NOTIFY_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      _subject: `New GXLD ticket ${ticket.code} from ${ticket.name}`,
+      code: ticket.code,
+      name: ticket.name,
+      discord: ticket.discord,
+      email: ticket.email,
+      package: ticket.packageType,
+      budget: ticket.budget,
+      deadline: ticket.deadline,
+      brief: ticket.brief,
+      openedAt: ticket.createdAt,
+    }),
+  }).catch(() => {});
+};
 
 const work = [
   {
@@ -136,6 +164,8 @@ const packages = [
   },
 ];
 
+const heroPreview = work.find((item) => item.title === "Minimal Anime Suite");
+
 const faqs = [
   ["How long does a commission take?", "Usually 2 days to 2 weeks depending on how many frames, revisions, and import work are needed."],
   ["What does importing mean?", "Turning the UI into Roblox Studio elements, scaling it correctly, and preparing the frame so it works in-game."],
@@ -178,7 +208,7 @@ function App() {
       <div className="beam beam-two" aria-hidden="true" />
       <div className="noise" aria-hidden="true" />
       <Nav onContact={() => setContactMode("choice")} />
-      <Hero onContact={() => setContactMode("choice")} onPreview={() => setActivePreview(work[0])} />
+      <Hero onContact={() => setContactMode("choice")} onPreview={() => setActivePreview(heroPreview)} />
       <Showcase />
       <Gallery
         activeAll={showAllWork}
@@ -269,7 +299,7 @@ function Hero({ onContact, onPreview }) {
             <strong>Featured / Preview</strong>
           </div>
           <button className="hero-preview-button" type="button" onClick={onPreview}>
-            <img src="/assets/anime-stud.jpg" alt="Anime Roblox UI display by GXLD" />
+            <img src="/assets/minimal-anime.jpg" alt="Minimal Anime Suite Roblox UI display by GXLD" />
             <span>
               <Maximize2 size={16} />
               Open full preview
@@ -278,7 +308,7 @@ function Hero({ onContact, onPreview }) {
           <div className="preview-caption">
             <div>
               <span>Current style</span>
-              <b>Anime Stud UI</b>
+              <b>Minimal Anime Suite</b>
             </div>
             <a href="#work" aria-label="Jump to portfolio work">
               <Play size={15} fill="currentColor" />
@@ -542,8 +572,24 @@ function DiscordInstructions({ setMode }) {
   const [copied, setCopied] = useState(false);
 
   const copyId = async () => {
-    await navigator.clipboard.writeText(DISCORD_USER_ID);
-    setCopied(true);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(DISCORD_USER_ID);
+      } else {
+        const field = document.createElement("textarea");
+        field.value = DISCORD_USER_ID;
+        field.style.position = "fixed";
+        field.style.opacity = "0";
+        document.body.appendChild(field);
+        field.select();
+        document.execCommand("copy");
+        document.body.removeChild(field);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
   };
 
   return (
@@ -640,7 +686,7 @@ function TicketForm({ onCreated }) {
   const submit = (event) => {
     event.preventDefault();
     const now = new Date().toISOString();
-    onCreated({
+    const ticket = {
       ...form,
       id: crypto.randomUUID(),
       code: makeTicketCode(),
@@ -648,8 +694,11 @@ function TicketForm({ onCreated }) {
       createdAt: now,
       updatedAt: now,
       adminNote: "Thanks for opening a ticket. GXLD will review your brief and reply soon.",
+      adminNoteAt: now,
       replies: [],
-    });
+    };
+    notifyNewTicket(ticket);
+    onCreated(ticket);
   };
 
   return (
@@ -743,7 +792,7 @@ function TicketView({ ticket, tickets, updateTickets, onBack }) {
         <p>{currentTicket.brief}</p>
       </div>
       <div className="reply-list">
-        <Reply from="GXLD" body={currentTicket.adminNote} at={currentTicket.updatedAt} />
+        <Reply from="GXLD" body={currentTicket.adminNote} at={currentTicket.adminNoteAt || currentTicket.createdAt} />
         {currentTicket.replies.map((reply, index) => (
           <Reply key={`${reply.at}-${index}`} {...reply} />
         ))}
@@ -762,19 +811,62 @@ function TicketView({ ticket, tickets, updateTickets, onBack }) {
 function AdminDesk({ tickets, updateTickets, setMode }) {
   const [accessCode, setAccessCode] = useState("");
   const [isAuthed, setIsAuthed] = useState(false);
+  const [authError, setAuthError] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
-  const [note, setNote] = useState("");
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [reply, setReply] = useState("");
 
-  const selected = useMemo(() => tickets.find((ticket) => ticket.id === selectedId) || tickets[0], [tickets, selectedId]);
+  const counts = useMemo(() => {
+    const base = { All: tickets.length };
+    TICKET_STATUSES.forEach((status) => {
+      base[status] = tickets.filter((ticket) => ticket.status === status).length;
+    });
+    return base;
+  }, [tickets]);
+
+  const visibleTickets = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    return [...tickets]
+      .filter((ticket) => statusFilter === "All" || ticket.status === statusFilter)
+      .filter((ticket) => {
+        if (!term) return true;
+        return [ticket.code, ticket.name, ticket.discord, ticket.brief]
+          .filter(Boolean)
+          .some((field) => field.toLowerCase().includes(term));
+      })
+      .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+  }, [tickets, query, statusFilter]);
+
+  const selected = useMemo(
+    () => tickets.find((ticket) => ticket.id === selectedId) || visibleTickets[0],
+    [tickets, selectedId, visibleTickets],
+  );
+
+  const tryAuth = () => {
+    const ok = accessCode === ADMIN_ACCESS_CODE;
+    setIsAuthed(ok);
+    setAuthError(!ok);
+  };
 
   if (!isAuthed) {
     return (
       <div className="lookup-panel">
         <label>
           Owner access code
-          <input value={accessCode} onChange={(event) => setAccessCode(event.target.value)} placeholder="Access code" />
+          <input
+            type="password"
+            value={accessCode}
+            onChange={(event) => {
+              setAccessCode(event.target.value);
+              setAuthError(false);
+            }}
+            onKeyDown={(event) => event.key === "Enter" && tryAuth()}
+            placeholder="Access code"
+          />
         </label>
-        <button className="btn primary" type="button" onClick={() => setIsAuthed(accessCode === ADMIN_ACCESS_CODE)}>
+        {authError && <p className="form-error">Incorrect access code. Try again.</p>}
+        <button className="btn primary" type="button" onClick={tryAuth}>
           <Shield size={16} />
           Enter Admin
         </button>
@@ -793,70 +885,125 @@ function AdminDesk({ tickets, updateTickets, setMode }) {
     updateTickets(nextTickets);
   };
 
-  const saveNote = () => {
-    if (!selected || !note.trim()) return;
-    updateSelected({ adminNote: note.trim() });
-    setNote("");
+  const sendReply = () => {
+    if (!selected || !reply.trim()) return;
+    const now = new Date().toISOString();
+    updateSelected({ replies: [...selected.replies, { from: "GXLD", body: reply.trim(), at: now }] });
+    setReply("");
   };
 
+  const deleteSelected = () => {
+    if (!selected) return;
+    if (!window.confirm(`Delete ticket ${selected.code} from ${selected.name}? This cannot be undone.`)) return;
+    updateTickets(tickets.filter((ticket) => ticket.id !== selected.id));
+    setSelectedId(null);
+  };
+
+  if (tickets.length === 0) {
+    return (
+      <div className="empty-state">
+        <Inbox size={26} />
+        <strong>No tickets yet</strong>
+        <span>New website requests will appear here.</span>
+      </div>
+    );
+  }
+
   return (
-    <div className="admin-grid">
-      <div className="ticket-list">
-        {tickets.length === 0 && (
-          <div className="empty-state">
-            <Inbox size={26} />
-            <strong>No tickets yet</strong>
-            <span>New website requests will appear here.</span>
-          </div>
-        )}
-        {tickets.map((ticket) => (
+    <div className="admin-shell">
+      <div className="admin-stats">
+        {["All", ...TICKET_STATUSES].map((status) => (
           <button
-            className={selected?.id === ticket.id ? "ticket-row active" : "ticket-row"}
+            className={statusFilter === status ? "stat-chip active" : "stat-chip"}
             type="button"
-            key={ticket.id}
-            onClick={() => setSelectedId(ticket.id)}
+            key={status}
+            onClick={() => setStatusFilter(status)}
           >
-            <span>{ticket.code}</span>
-            <strong>{ticket.name}</strong>
-            <small>{ticket.status}</small>
+            <strong>{counts[status] ?? 0}</strong>
+            <span>{status}</span>
           </button>
         ))}
       </div>
-      {selected && (
-        <div className="admin-detail">
-          <div className="ticket-summary">
-            <UserRound size={20} />
-            <div>
-              <span>{selected.code}</span>
-              <h3>{selected.name}</h3>
-              <p>{selected.discord} - {selected.packageType}</p>
+      <div className="admin-search">
+        <Search size={15} />
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search code, name, Discord, or brief" />
+      </div>
+      <div className="admin-grid">
+        <div className="ticket-list">
+          {visibleTickets.length === 0 && (
+            <div className="empty-state compact">
+              <Inbox size={22} />
+              <span>No tickets match this filter.</span>
+            </div>
+          )}
+          {visibleTickets.map((ticket) => (
+            <button
+              className={selected?.id === ticket.id ? "ticket-row active" : "ticket-row"}
+              type="button"
+              key={ticket.id}
+              onClick={() => setSelectedId(ticket.id)}
+            >
+              <span>{ticket.code}</span>
+              <strong>{ticket.name}</strong>
+              <small>
+                {ticket.status} - {new Date(ticket.updatedAt).toLocaleDateString()}
+              </small>
+            </button>
+          ))}
+        </div>
+        {selected && (
+          <div className="admin-detail">
+            <div className="admin-detail-top">
+              <div className="ticket-summary">
+                <UserRound size={20} />
+                <div>
+                  <span>{selected.code}</span>
+                  <h3>{selected.name}</h3>
+                  <p>
+                    {selected.discord} - {selected.packageType}
+                  </p>
+                </div>
+              </div>
+              <button className="icon-btn danger" type="button" onClick={deleteSelected} aria-label="Delete ticket">
+                <Trash2 size={17} />
+              </button>
+            </div>
+            <div className="admin-meta">
+              {selected.email && <span>{selected.email}</span>}
+              {selected.budget && <span>Budget: {selected.budget}</span>}
+              {selected.deadline && <span>Deadline: {selected.deadline}</span>}
+              <span>Opened {new Date(selected.createdAt).toLocaleDateString()}</span>
+            </div>
+            <div className="status-edit">
+              <label>
+                Status
+                <select value={selected.status} onChange={(event) => updateSelected({ status: event.target.value })}>
+                  {TICKET_STATUSES.map((status) => (
+                    <option key={status}>{status}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="ticket-body">
+              <strong>Brief</strong>
+              <p>{selected.brief}</p>
+            </div>
+            <div className="reply-list">
+              <Reply from="GXLD" body={selected.adminNote} at={selected.adminNoteAt || selected.createdAt} />
+              {selected.replies.map((entry, index) => (
+                <Reply key={`${entry.at}-${index}`} {...entry} />
+              ))}
+            </div>
+            <div className="reply-box">
+              <textarea value={reply} onChange={(event) => setReply(event.target.value)} placeholder="Reply to the client as GXLD." />
+              <button className="btn primary" type="button" onClick={sendReply}>
+                <Send size={16} />
+                Send Reply
+              </button>
             </div>
           </div>
-          <div className="status-edit">
-            <label>
-              Status
-              <select value={selected.status} onChange={(event) => updateSelected({ status: event.target.value })}>
-                <option>Open</option>
-                <option>In Review</option>
-                <option>Quoted</option>
-                <option>In Progress</option>
-                <option>Completed</option>
-              </select>
-            </label>
-          </div>
-          <div className="ticket-body">
-            <strong>Brief</strong>
-            <p>{selected.brief}</p>
-          </div>
-          <div className="reply-box">
-            <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder={selected.adminNote} />
-            <button className="btn primary" type="button" onClick={saveNote}>
-              <CheckCircle2 size={16} />
-              Save GXLD Note
-            </button>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -884,6 +1031,14 @@ function StatusPill({ status }) {
 }
 
 function ModalShell({ children, onClose, size }) {
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
       <div className={`modal-card ${size}`} role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}>

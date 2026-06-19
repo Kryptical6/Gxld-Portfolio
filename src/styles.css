@@ -1338,6 +1338,120 @@ select option {
   color: var(--gold-hot);
 }
 
+.empty-state.compact {
+  min-height: 120px;
+  gap: 8px;
+}
+
+.admin-shell {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.stat-chip {
+  display: grid;
+  gap: 2px;
+  padding: 10px 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.035);
+  cursor: pointer;
+  text-align: center;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.stat-chip:hover {
+  border-color: var(--line-bright);
+  transform: translateY(-2px);
+}
+
+.stat-chip.active {
+  border-color: var(--line-bright);
+  background: rgba(201, 168, 76, 0.1);
+}
+
+.stat-chip strong {
+  color: var(--gold-hot);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.stat-chip span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.admin-search {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.admin-search svg {
+  flex: 0 0 auto;
+  color: var(--dim);
+}
+
+.admin-search input {
+  border: 0;
+  background: transparent;
+}
+
+.admin-search input:focus {
+  box-shadow: none;
+}
+
+.admin-detail-top {
+  display: flex;
+  gap: 12px;
+  align-items: start;
+  justify-content: space-between;
+}
+
+.admin-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-meta span {
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 11px;
+}
+
+.icon-btn.danger {
+  color: var(--rose);
+}
+
+.icon-btn.danger:hover,
+.icon-btn.danger:focus-visible {
+  border-color: rgba(255, 148, 191, 0.5);
+  background: rgba(255, 148, 191, 0.1);
+}
+
+.form-error {
+  margin: 0;
+  color: var(--rose);
+  font-size: 13px;
+}
+
 @keyframes float {
   0%, 100% { transform: rotateX(2deg) rotateY(-5deg) translateY(0); }
   50% { transform: rotateX(1deg) rotateY(-3deg) translateY(-14px); }
@@ -1456,6 +1570,10 @@ select option {
   .section-topline {
     display: grid;
     align-items: start;
+  }
+
+  .admin-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .work-button,
