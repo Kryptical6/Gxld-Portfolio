@@ -22,11 +22,15 @@ paste two values.
 2. Open [`supabase/schema.sql`](supabase/schema.sql) from this repo, copy everything, paste it in, and click **Run**.
 3. You should see "Success". This creates the `tickets` and `ticket_replies` tables, security rules, and the functions visitors use.
 
-## 3. Get your two keys
+## 3. Get your two values
 
 1. Open **Project Settings** (gear) → **API**.
-2. Copy the **Project URL** (looks like `https://abcd1234.supabase.co`).
-3. Copy the **anon public** key (a long string). This one is safe to expose in a website build — the database security rules are what protect your data.
+2. Copy the **Project URL** — it looks like `https://abcd1234.supabase.co`.
+   - ⚠️ This is *not* the database connection string (`postgresql://…` under Settings → Database). Use the Project URL only.
+3. Copy the public API key. Depending on your dashboard it is labelled either:
+   - **Publishable key** (`sb_publishable_…`), or
+   - **anon public** (a long `eyJ…` token) on older projects.
+   - ⚠️ Do **not** use the **Secret key** / **service_role** key. That one bypasses all security and must never go in a website build. The publishable/anon key is safe to expose — Row Level Security protects your data.
 
 ## 4. Create your owner login
 
@@ -40,7 +44,7 @@ paste two values.
 
 ```
 VITE_SUPABASE_URL=https://abcd1234.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-public-key
+VITE_SUPABASE_ANON_KEY=your-publishable-or-anon-public-key
 ```
 
 Then restart `npm run dev`.
