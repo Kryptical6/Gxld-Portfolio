@@ -542,7 +542,7 @@ details p,
 .showcase {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  gap: 14px;
   padding: 0 0 32px;
 }
 
@@ -626,7 +626,7 @@ details {
 
 .work-grid {
   display: grid;
-  gap: 16px;
+  gap: 14px;
 }
 
 .work-grid.featured {
@@ -968,7 +968,7 @@ details p {
 
 .preview-modal,
 .contact-modal {
-  padding: 18px;
+  padding: 20px;
 }
 
 .modal-heading {
@@ -1077,7 +1077,7 @@ details p {
 .lookup-panel,
 .ticket-view {
   display: grid;
-  gap: 16px;
+  gap: 14px;
 }
 
 .id-card,
@@ -1095,7 +1095,7 @@ details p {
 .id-card {
   display: grid;
   gap: 10px;
-  padding: 18px;
+  padding: 16px;
 }
 
 .id-card strong {
@@ -1252,7 +1252,7 @@ select option {
 }
 
 .reply {
-  padding: 14px;
+  padding: 16px;
 }
 
 .reply div {
@@ -1317,8 +1317,8 @@ select option {
 
 .admin-detail {
   display: grid;
-  gap: 12px;
-  padding: 14px;
+  gap: 14px;
+  padding: 16px;
 }
 
 .admin-detail .ticket-summary {
@@ -1979,7 +1979,7 @@ select option {
 .admin-panel-block {
   display: grid;
   gap: 10px;
-  padding: 14px;
+  padding: 16px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.025);
